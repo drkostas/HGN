@@ -1,0 +1,54 @@
+tag: dev
+datastore:
+  - config:
+      hostname: !ENV ${MYSQL_HOST}
+      username: !ENV ${MYSQL_USERNAME}
+      password: !ENV ${MYSQL_PASSWORD}
+      db_name: !ENV ${MYSQL_DB_NAME}
+      port: 3306
+    type: mysql
+input:
+  - config:
+      name: Quakers
+      nodes:
+        path: data/input_graphs/Quakers/quakers_nodelist.csv2
+        has_header: true
+        delimiter: ,
+        encoding: ISO-8859-1
+      edges:
+        path: data/input_graphs/Quakers/quakers_edgelist.csv2
+        has_header: true
+        has_weights: false
+        delimiter: ,
+        encoding: ISO-8859-1
+        feature_names:
+          - id
+          - Historical_Significance
+          - Gender
+          - Birthdate
+          - Deathdate
+          - ID
+    type: local
+run_options:
+  - config:
+      feaure_min_avg: 0.33
+      r_lvl1: 0.50
+      r_lvl2: 0.85
+      edge_weight: 0.50
+      betweenness_thres: 10
+      max_sp_length: 2
+      min_comp_size: 2
+      max_steps: 30
+      features_to_check:
+        - id
+        - Gender
+output:
+  - config:
+      df_data_folder: data/dataframes
+      plots_folder: data/plots
+      checkpoints_folder: data/checkpoints
+      cached_init_step: False
+      plot_steps:
+        - 0
+      plot_final: true
+
