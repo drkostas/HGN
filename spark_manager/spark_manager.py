@@ -7,8 +7,8 @@ import pyspark
 import pyspark.sql
 import pyspark.ml.feature
 import pyspark.mllib.linalg.distributed
-from pyspark.sql.functions import lit, struct
-from pyspark.sql.types import StructField, StructType, StringType, LongType, FloatType
+from pyspark.sql.functions import lit, struct, explode, udf, collect_set, count, desc, coalesce, col, array, when
+from pyspark.sql.types import *
 from pyspark.storagelevel import StorageLevel
 from graphframes import GraphFrame
 
@@ -23,7 +23,7 @@ class SparkManager:
     system operations.
     """
     __slots__ = ('spark_session', 'spark_context', 'sql_context',
-                 'graph_name', 'df_data_folder', 'checkpoints_folder', 'feature_names')
+                 'graph_name', 'df_data_folder', 'checkpoints_folder', 'feature_names', 'has_edge_weights')
 
     spark_session: pyspark.sql.SparkSession
     spark_context: pyspark.SparkContext
@@ -32,9 +32,11 @@ class SparkManager:
     df_data_folder: str
     checkpoints_folder: str
     feature_names: List
+    has_edge_weights: bool
     loop_counter: int = 0
 
-    def __init__(self, graph_name: str, feature_names: List, df_data_folder: str, checkpoints_folder: str) -> None:
+    def __init__(self, graph_name: str, feature_names: List, df_data_folder: str, checkpoints_folder: str,
+                 has_edge_weights: bool) -> None:
         """The basic constructor. Creates a new instance of SparkManager using
         the specified settings.
 
@@ -43,6 +45,7 @@ class SparkManager:
             feature_names (List):
             df_data_folder (str):
             checkpoints_folder (str):
+            has_edge_weights (bool):
         """
 
         logger.info("Initializing SparkManager..")
@@ -51,6 +54,7 @@ class SparkManager:
         self.feature_names = feature_names
         self.df_data_folder = os.path.join(df_data_folder, self.graph_name)
         self.checkpoints_folder = os.path.join(checkpoints_folder, self.graph_name)
+        self.has_edge_weights = has_edge_weights
         # Delete old files
         self._clean_folder(folder_path=self.df_data_folder)
         self._clean_folder(folder_path=self.checkpoints_folder)
@@ -67,9 +71,7 @@ class SparkManager:
 
     @staticmethod
     def GraphFrame(vertices: pyspark.sql.DataFrame, edges: pyspark.sql.DataFrame) -> GraphFrame:
-        """Simply calls the graphframes.GraphFrame :param vertices: :type
-        vertices: pyspark.sql.DataFrame :param edges: :type edges:
-        pyspark.sql.DataFrame
+        """Simply calls the graphframes.GraphFrame
 
         Args:
             vertices (pyspark.sql.DataFrame):
@@ -124,26 +126,48 @@ class SparkManager:
                 StructField("dst", LongType(), True)])
             edges_df = self.sql_context.read.load(path, format="csv", header=has_header, sep=delimiter,
                                                   schema=edges_schema)
-        # nodesDF = edgesDF.select("src").union(edgesDF.select("dst")).withColumnRenamed('src', 'id').distinct().orderBy("id")
-        # elapsed_time = time.time() - start_time
-        # print(colored('DataFrames Created: %.3f seconds' % elapsed_time, 'yellow'))
+        # nodes_df = edges_df.select("src").union(edges_df.select("dst")).withColumnRenamed('src', 'id').distinct().orderBy("id")
         return self.reload_df(df=edges_df, name="edges_df")
 
-    def create_shortest_paths_df(self, motifs_list: List[pyspark.sql.DataFrame],
-                                 has_edge_weights: bool) -> pyspark.sql.DataFrame:
-        """Creates the shortest paths DataFrame from a list of motifs.
+    def create_dummy_vectors(self, nodes_df: pyspark.sql.DataFrame, features_to_check: List[str]) \
+            -> pyspark.sql.DataFrame:
+        """Create dummy vectors from the input nodes.
 
         Args:
-            motifs_list (List[pyspark.sql.DataFrame]):
-            has_edge_weights (bool):
+            nodes_df (pyspark.sql.DataFrame):
+            features_to_check (List[str])):
         """
 
-        motifs_list_eq = self._add_missing_columns_to_paths_dfs(dfs_list=motifs_list, has_edge_weights=has_edge_weights)
-        self.unpersist_all_rdds()
+        logger.info("Creating Dummy Vectors from the input nodes..")
+        # String Indexer
+        indexers = [pyspark.ml.feature.StringIndexer(inputCol=column, outputCol=column + "_index") \
+                        .setHandleInvalid("keep") \
+                        .fit(nodes_df)
+                    for column in features_to_check[1:]]
+        # One Hot Encoder
+        indexed_features = list(map(lambda el: el + "_index",features_to_check[1:]))
+        vectorized_features = list(map(lambda el: el + "_vector", features_to_check[1:]))
+        encoder = pyspark.ml.feature.OneHotEncoderEstimator(inputCols=indexed_features, outputCols=vectorized_features)
+        # Vector Assembler
+        assembler = pyspark.ml.feature.VectorAssembler(inputCols=vectorized_features, outputCol="features")
+        # Assembling the Pipeline
+        pipeline = pyspark.ml.Pipeline(stages=indexers + [encoder, assembler])
+        dummy_vectors = pipeline.fit(nodes_df).transform(nodes_df)
+
+        return dummy_vectors.select(features_to_check[0], "features")
+
+    def get_shortest_paths_df(self, shortest_paths_list: List[pyspark.sql.DataFrame]) -> pyspark.sql.DataFrame:
+        """Creates the shortest paths DataFrame from a list of motifs(paths).
+
+        Args:
+            shortest_paths_list (List[pyspark.sql.DataFrame]):
+        """
+
+        logger.debug("Creating shortest_paths_df..")
         # motifs = self.union_dfs(motifs_list_eq, 5)
-        for motif in motifs_list_eq:
-            self.save_to_parquet(df=motif, name="motifs", mode="append", pre_final=True)
-        return self.clean_and_reload_df(name="motifs")
+        for motif in self._add_missing_columns_to_paths_dfs(dfs_list=shortest_paths_list, has_edge_weights=self.has_edge_weights):
+            self.save_to_parquet(df=motif, name="shortest_paths", mode="append", pre_final=True)
+        return self.clean_and_reload_df(name="shortest_paths")
 
     def clean_and_reload_df(self, name: str, df: pyspark.sql.DataFrame = None) -> pyspark.sql.DataFrame:
         """Stores df to temp parquet, drop duplicates and reloads it.
@@ -159,6 +183,7 @@ class SparkManager:
             loaded_df = self.reload_df(df=df, name=name, pre_final=True)
         else:
             loaded_df = self.load_from_parquet(name=name, pre_final=True)
+            loaded_df.persist(StorageLevel.MEMORY_AND_DISK)
         loaded_df = loaded_df.dropDuplicates()
 
         self.save_to_parquet(df=loaded_df, name=name, mode="overwrite", pre_final=False)
@@ -251,6 +276,7 @@ class SparkManager:
             num_partitions (int):
         """
 
+        logger.debug("Repartitioning to %s num_partitions %s dfs.." % (num_partitions, len(dfs_list)))
         return [df.repartition(num_partitions) for df in dfs_list]
 
     def union_dfs(self, dfs_list: List[pyspark.sql.DataFrame], union_steps: int) -> pyspark.sql.DataFrame:
@@ -263,6 +289,7 @@ class SparkManager:
                 slower but less memory intensive
         """
 
+        logger.debug("Starting recursive union for %s dfs in %s steps" % (len(dfs_list), union_steps))
         return self._reduce_union(*self._recursive_union(dfs_list=dfs_list, union_steps=union_steps))
 
     @staticmethod
@@ -307,8 +334,8 @@ class SparkManager:
         return unified_dfs_list
 
     @staticmethod
-    def _add_missing_columns_to_paths_dfs(dfs_list: List[pyspark.sql.DataFrame], has_edge_weights: bool) -> List[
-        pyspark.sql.DataFrame]:
+    def _add_missing_columns_to_paths_dfs(dfs_list: List[pyspark.sql.DataFrame],
+                                          has_edge_weights: bool) -> List[pyspark.sql.DataFrame]:
         """For a given list of DataFrames containing graph paths, it adds the
         union of all columns to the dfs that are missing them.
 
@@ -317,6 +344,7 @@ class SparkManager:
             has_edge_weights (bool):
         """
 
+        logger.debug("Adding missing columns to list with %s path dfs.." % len(dfs_list))
         if has_edge_weights:
             edges_column = struct(*[lit(0).alias('src'), lit(0).alias('dst'), lit(0.0).alias('weight')])
             edges_schema = StructType([
@@ -346,8 +374,7 @@ class SparkManager:
                     dfs_list[df_count] = dfs_list[df_count].select('*', dfs_list[df_count][
                         '{}_tmp'.format(missing_column)].cast(edges_schema).alias(missing_column)) \
                         .drop('{}_tmp'.format(missing_column))
-
-        return dfs_list
+                yield dfs_list[df_count]
 
     @staticmethod
     def _clean_folder(folder_path: str) -> None:
@@ -357,6 +384,7 @@ class SparkManager:
             folder_path (str):
         """
 
+        logger.debug("Clearing all elements from folder %s.." % folder_path)
         if os.path.exists(folder_path):
             shutil.rmtree(folder_path, ignore_errors=True)
         os.makedirs(folder_path)

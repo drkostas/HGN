@@ -31,9 +31,9 @@ input:
     type: local
 run_options:
   - config:
-      feaure_min_avg: 0.33
-      r_lvl1: 0.50
-      r_lvl2: 0.85
+      feature_min_avg: 0.33
+      r_lvl1_thres: 0.50
+      r_lvl2_thres: 0.85
       edge_weight: 0.50
       betweenness_thres: 10
       max_sp_length: 2
