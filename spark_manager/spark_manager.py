@@ -23,7 +23,8 @@ class SparkManager:
     system operations.
     """
     __slots__ = ('spark_session', 'spark_context', 'sql_context',
-                 'graph_name', 'df_data_folder', 'checkpoints_folder', 'feature_names', 'has_edge_weights')
+                 'graph_name', 'df_data_folder', 'checkpoints_folder', 'feature_names', 'has_edge_weights',
+                 'loop_counter')
 
     spark_session: pyspark.sql.SparkSession
     spark_context: pyspark.SparkContext
@@ -33,7 +34,7 @@ class SparkManager:
     checkpoints_folder: str
     feature_names: List
     has_edge_weights: bool
-    loop_counter: int = 0
+    loop_counter: int
 
     def __init__(self, graph_name: str, feature_names: List, df_data_folder: str, checkpoints_folder: str,
                  has_edge_weights: bool) -> None:
@@ -50,6 +51,7 @@ class SparkManager:
 
         logger.info("Initializing SparkManager..")
         # Store object properties
+        self.loop_counter = 0
         self.graph_name = graph_name
         self.feature_names = feature_names
         self.df_data_folder = os.path.join(df_data_folder, self.graph_name)
@@ -145,7 +147,7 @@ class SparkManager:
                         .fit(nodes_df)
                     for column in features_to_check[1:]]
         # One Hot Encoder
-        indexed_features = list(map(lambda el: el + "_index",features_to_check[1:]))
+        indexed_features = list(map(lambda el: el + "_index", features_to_check[1:]))
         vectorized_features = list(map(lambda el: el + "_vector", features_to_check[1:]))
         encoder = pyspark.ml.feature.OneHotEncoderEstimator(inputCols=indexed_features, outputCols=vectorized_features)
         # Vector Assembler
@@ -165,7 +167,8 @@ class SparkManager:
 
         logger.debug("Creating shortest_paths_df..")
         # motifs = self.union_dfs(motifs_list_eq, 5)
-        for motif in self._add_missing_columns_to_paths_dfs(dfs_list=shortest_paths_list, has_edge_weights=self.has_edge_weights):
+        for motif in self._add_missing_columns_to_paths_dfs(dfs_list=shortest_paths_list,
+                                                            has_edge_weights=self.has_edge_weights):
             self.save_to_parquet(df=motif, name="shortest_paths", mode="append", pre_final=True)
         return self.clean_and_reload_df(name="shortest_paths")
 

@@ -4,11 +4,12 @@ import traceback
 from typing import Tuple, Dict
 import logging
 import argparse
-import pandas as pd
+
 # Custom classes
 from configuration.configuration import Configuration
 from color_log.color_log import ColorLog
-from spark_manager.spark_manager import SparkManager
+from spark_manager import spark_manager
+from graph_tools import graph_tools
 
 logger = ColorLog(logging.getLogger('Main'), 'green')
 
@@ -69,9 +70,9 @@ def setup() -> Tuple[Dict, Dict, Dict, str]:
     output_config = config.get_output_configs()[0]
     options_id_name = "featMinAvg-{featMinAvg}_rLvl1-{rLvl1}_" \
                       "rLvl2-{rLvl2}_betwThres-{betwThres}_feats-{feats}" \
-        .format(featMinAvg=run_options_config['feaure_min_avg'],
-                rLvl1=run_options_config['r_lvl1'],
-                rLvl2=run_options_config['r_lvl2'],
+        .format(featMinAvg=run_options_config['feature_min_avg'],
+                rLvl1=run_options_config['r_lvl1_thres'],
+                rLvl2=run_options_config['r_lvl2_thres'],
                 betwThres=run_options_config['betweenness_thres'],
                 feats=''.join([feat[:10] for feat in run_options_config['features_to_check'][1:]]))
     modified_graph_name = os.path.join(input_config['name'], options_id_name)
@@ -79,7 +80,7 @@ def setup() -> Tuple[Dict, Dict, Dict, str]:
     return input_config, run_options_config, output_config, modified_graph_name
 
 
-def load_graph(spark_manager: SparkManager, config: Dict) -> SparkManager.GraphFrame:
+def load_graph(spark_manager: spark_manager.SparkManager, config: Dict) -> spark_manager.GraphFrame:
     logger.info("Loading the input graph into a GraphFrame")
     nodes_df = spark_manager.load_nodes_df(path=config['nodes']['path'],
                                            delimiter=config['nodes']['delimiter'],
@@ -91,21 +92,90 @@ def load_graph(spark_manager: SparkManager, config: Dict) -> SparkManager.GraphF
     return spark_manager.GraphFrame(nodes_df, edges_df)
 
 
+# def check_betweenness_and_edgeWeight(self, edge_weights, betweenness):
+#     print(colored("[check_betweenness_and_edgeWeight] Deciding which edges to delete", "white"))
+#     edges_to_delete1 = edge_weights.join(betweenness, [edge_weights.src == betweenness.edges.src,
+#                                                        edge_weights.dst == betweenness.edges.dst], "inner")
+#     edges_to_delete2 = edge_weights.join(betweenness, [edge_weights.src == betweenness.edges.dst,
+#                                                        edge_weights.dst == betweenness.edges.src], "inner")
+#     edges_to_delete = edges_to_delete1.union(edges_to_delete2) \
+#         .filter("(edge_weight < {0}) OR (edge_weight >= {0} AND betweenness > {1})".format(gv.EDGE_WEIGHT,
+#                                                                                            gv.BETWEENNESS_THRESHOLD)) \
+#         .select("src", "dst") \
+#         .repartition(4, "src").sortWithinPartitions("src")
+#     return edges_to_delete
+
+def main_loop(g: spark_manager.GraphFrame,
+              sm: spark_manager.SparkManager,
+              gt: graph_tools.GraphTools,
+              cosine_similarities: spark_manager.pyspark.sql.DataFrame,
+              edge_betweenness: spark_manager.pyspark.sql.DataFrame,
+              run_options_config: Dict) -> spark_manager.GraphFrame:
+    """The main loop."""
+
+    logger.info("Starting the Main Loop..")
+    while True:
+        # Increase the loop counter (it used to save to different parquets in each loop)
+        sm.loop_counter += 1
+        logger.info("Loop %s" % sm.loop_counter)
+        # Scan neighborhoods and filter edges based on the r metrics
+        sm.unpersist_all_rdds()
+        lvl1_neighbors, lvl2_neighbors, \
+        edges_r = gt.filter_edges_based_on_r_metrics(g=g,
+                                                     r_lvl1_thres=run_options_config['r_lvl1_thres'],
+                                                     r_lvl2_thres=run_options_config['r_lvl2_thres'])
+        edges_r = sm.reload_df(df=edges_r, name='edges_r')
+        # Calculate the edge weights
+        sm.unpersist_all_rdds()
+        edges_weights = gt.calculate_edge_weights(edges_r=edges_r,
+                                                  cosine_similarities=cosine_similarities,
+                                                  feature_min_avg=run_options_config['feature_min_avg'])
+        edges_weights = sm.reload_df(df=edges_weights, name='edges_weights')
+        # Delete Edges based on Edge Weights and Edge Betweenness
+        raise NotImplementedError()
+
+    return g
+
+
 def main() -> None:
-    """
+    """Run the HGN code.
+
     :Example:
     python main.py -c confs/template_conf.yml [--debug]
     """
 
     # Initializing
     input_config, run_options_config, output_config, modified_graph_name = setup()
-    sm = SparkManager(graph_name=modified_graph_name,
-                      feature_names=input_config['nodes']['feature_names'],
-                      df_data_folder=output_config['df_data_folder'],
-                      checkpoints_folder=output_config['checkpoints_folder'])
+    sm = spark_manager.SparkManager(graph_name=modified_graph_name,
+                                    feature_names=input_config['nodes']['feature_names'],
+                                    df_data_folder=output_config['df_data_folder'],
+                                    checkpoints_folder=output_config['checkpoints_folder'],
+                                    has_edge_weights=input_config['edges']['has_weights'])
+    gt = graph_tools.GraphTools(sm=sm, max_sp_length=run_options_config['max_sp_length'])
     logger.debug("Modified Graph Name: %s" % modified_graph_name)
     # Load nodes, edges and create GraphFrame
     g = load_graph(spark_manager=sm, config=input_config)
+    # Compute Betweenness and Cosine Similarities
+    if output_config['cached_init_step']:
+        cosine_similarities = sm.load_from_parquet('cosine_similarities')
+        edge_betweenness = sm.load_from_parquet('edge_betweenness')
+    else:
+        # Generate dummy vectors of the input nodes
+        dummy_vectors = sm.create_dummy_vectors(nodes_df=g.vertices,
+                                                features_to_check=run_options_config['features_to_check'])
+        # Calculate the Cosine Similarities of the input edges
+        cosine_similarities = gt.calculate_cosine_similarities(dummy_vectors=dummy_vectors,
+                                                               edges_df=g.edges)
+        # Calculate Edge Betweenness
+        landmarks = g.vertices.select("id").rdd.flatMap(lambda x: x).collect()
+        edge_betweenness = gt.calculate_edge_betweenness(g=g, landmarks=landmarks)
+        # Save and reload Cosine Similarities and Edge Betweenness
+        cosine_similarities = sm.reload_df(df=cosine_similarities, name="cosine_similarities")
+        edge_betweenness = sm.reload_df(df=edge_betweenness, name="edge_betweenness")
+    # Start the Main Loop of the HGN
+    g = main_loop(g=g, sm=sm, gt=gt,
+                  cosine_similarities=cosine_similarities, edge_betweenness=edge_betweenness,
+                  run_options_config=run_options_config)
 
 
 if __name__ == '__main__':
