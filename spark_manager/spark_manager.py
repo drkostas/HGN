@@ -12,7 +12,10 @@ from pyspark.sql.types import StructField, StructType, StringType, LongType, Flo
 from pyspark.storagelevel import StorageLevel
 from graphframes import GraphFrame
 
-logger = logging.getLogger('SparkManager')
+from color_log.color_log import ColorLog
+
+logger = ColorLog(logging.getLogger('SparkManager'), 'red')
+logging.getLogger('py4j').setLevel(logging.INFO)
 
 
 class SparkManager:
@@ -42,6 +45,7 @@ class SparkManager:
             checkpoints_folder (str):
         """
 
+        logger.info("Initializing SparkManager..")
         # Store object properties
         self.graph_name = graph_name
         self.feature_names = feature_names
@@ -59,7 +63,6 @@ class SparkManager:
         # Instantiate Spark
         self.spark_session = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
         self.spark_context = self.spark_session.sparkContext
-        self.spark_context.setLogLevel("INFO")
         self.sql_context = pyspark.sql.SQLContext(self.spark_context)
 
     @staticmethod
@@ -98,6 +101,7 @@ class SparkManager:
             pre_final (bool):
         """
 
+        logger.debug("Saving %s to parquet.." % name)
         path = os.path.join(self.df_data_folder, name, str(self.loop_counter))
         if not os.path.exists(path):
             os.makedirs(path)
@@ -123,6 +127,7 @@ class SparkManager:
             pre_final (bool):
         """
 
+        logger.debug("Loading from parquet %s.." % name)
         path = os.path.join(self.df_data_folder, name, str(self.loop_counter))
         if pre_final:
             parquet_name = os.path.join(path, name + ".pre_final.parquet")
@@ -159,6 +164,7 @@ class SparkManager:
                 names
         """
 
+        logger.debug("Loading nodes_df from path %s.." % path)
         struct_list = [StructField(self.feature_names[0], LongType(), True)]
         for feature in self.feature_names[1:]:
             struct_list.append(StructField(feature, StringType(), True))
@@ -180,6 +186,7 @@ class SparkManager:
                 names
         """
 
+        logger.debug("Loading edges_df from path %s.." % path)
         if has_weights:
             edges_schema = StructType([
                 StructField("src", LongType(), True),
@@ -201,6 +208,7 @@ class SparkManager:
     def unpersist_rdds(self) -> None:
         """Unpersists all the rdds using the internal java spark context."""
 
+        logger.debug('Unpersisting all RDDs..')
         [rdd.unpersist() for rdd in list(self.spark_context._jsc.getPersistentRDDs().values())]
 
     def clean_and_reload_df(self, df: pyspark.sql.DataFrame, name: str) -> pyspark.sql.DataFrame:
@@ -211,6 +219,7 @@ class SparkManager:
             name (str):
         """
 
+        logger.debug("Cleaning and reloading df %s.." % name)
         path = os.path.join(self.df_data_folder, name, str(self.loop_counter))
         loaded_df = self.reload_df(df=df, name=name, pre_final=True)
 
@@ -229,4 +238,6 @@ class SparkManager:
             exc_val:
             exc_tb:
         """
+
+        logger.debug("Closing SparkManager..")
         self.spark_context.stop()

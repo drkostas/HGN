@@ -13,13 +13,7 @@ input:
       nodes:
         path: data/input_graphs/Quakers/quakers_nodelist.csv2
         has_header: true
-        delimiter: ,
-        encoding: ISO-8859-1
-      edges:
-        path: data/input_graphs/Quakers/quakers_edgelist.csv2
-        has_header: true
-        has_weights: false
-        delimiter: ,
+        delimiter: ','
         encoding: ISO-8859-1
         feature_names:
           - id
@@ -27,7 +21,13 @@ input:
           - Gender
           - Birthdate
           - Deathdate
-          - ID
+          - internal_id
+      edges:
+        path: data/input_graphs/Quakers/quakers_edgelist.csv2
+        has_header: true
+        has_weights: false
+        delimiter: ','
+        encoding: ISO-8859-1
     type: local
 run_options:
   - config:
@@ -44,6 +44,7 @@ run_options:
         - Gender
 output:
   - config:
+      logs_folder: data/logs
       df_data_folder: data/dataframes
       plots_folder: data/plots
       checkpoints_folder: data/checkpoints

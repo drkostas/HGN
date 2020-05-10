@@ -12,26 +12,31 @@ logger = logging.getLogger('Configuration')
 
 
 class Configuration:
-    __slots__ = ('config', 'config_path', 'datastore', 'cloudstore', 'email_app', 'tag')
+    """Handles the loading of the configuration settings from a yml file."""
+
+    __slots__ = ('config', 'config_path', 'datastore', 'input', 'run_options', 'output', 'tag')
 
     config: Dict
     config_path: str
     datastore: Dict
-    cloudstore: Dict
-    email_app: Dict
+    input: Dict
+    run_options: Dict
+    run_options: Dict
     tag: str
     config_attributes: List = []
     env_variable_tag: str = '!ENV'
     env_variable_pattern: str = r'.*?\${(\w+)}.*?'  # ${var}
 
     def __init__(self, config_src: Union[TextIOWrapper, StringIO, str], config_schema_path: str = 'yml_schema.json'):
-        """
-       The basic constructor. Creates a new instance of the Configuration class.
+        """The basic constructor. Creates a new instance of the Configuration
+        class.
 
-        :param config_src:
-        :param config_schema_path:
+        Args:
+            config_src:
+            config_schema_path (str):
         """
 
+        logger.info("Initializing Configuration..")
         # Load the predefined schema of the configuration
         configuration_schema = self.load_configuration_schema(config_schema_path=config_schema_path)
         # Load the configuration
@@ -40,10 +45,10 @@ class Configuration:
                                                       env_pattern=self.env_variable_pattern)
         logger.debug("Loaded config: %s" % self.config)
         # Validate the config
-        validate_json_schema(self.config, configuration_schema)
+        # validate_json_schema(self.config, configuration_schema)
         # Set the config properties as instance attributes
         self.tag = self.config['tag']
-        all_config_attributes = ('datastore', 'cloudstore', 'email_app')
+        all_config_attributes = ('datastore', 'input', 'run_options', 'output')
         for config_attribute in all_config_attributes:
             if config_attribute in self.config.keys():
                 setattr(self, config_attribute, self.config[config_attribute])
@@ -53,12 +58,21 @@ class Configuration:
 
     @staticmethod
     def load_configuration_schema(config_schema_path: str) -> Dict:
+        """
+        Args:
+            config_schema_path (str):
+        """
         with open('/'.join([os.path.dirname(os.path.realpath(__file__)), config_schema_path])) as f:
             configuration_schema = json.load(f)
         return configuration_schema
 
     @staticmethod
     def load_yml(config_src: Union[TextIOWrapper, StringIO, str], env_tag: str, env_pattern: str) -> Tuple[Dict, str]:
+        """
+        Loads a yml file.
+
+        """
+
         pattern = re.compile(env_pattern)
         loader = yaml.SafeLoader
         loader.add_implicit_resolver(env_tag, pattern, None)
@@ -101,40 +115,52 @@ class Configuration:
             raise TypeError('Config file must be TextIOWrapper or path to a file')
         return config, config_path
 
-    def get_datastores(self) -> List:
+    def get_datastore_configs(self) -> List[Dict]:
+        """Returns the datastore configs."""
+
         if 'datastore' in self.config_attributes:
             return [sub_config['config'] for sub_config in self.datastore]
         else:
             raise ConfigurationError('Config property datastore not set!')
 
-    def get_cloudstores(self) -> List:
-        if 'cloudstore' in self.config_attributes:
-            return [sub_config['config'] for sub_config in self.cloudstore]
+    def get_input_configs(self) -> List[Dict]:
+        """Returns the input configs."""
+
+        if 'input' in self.config_attributes:
+            return [sub_config['config'] for sub_config in self.input]
         else:
-            raise ConfigurationError('Config property cloudstore not set!')
+            raise ConfigurationError('Config property input not set!')
 
-    def get_email_apps(self) -> List:
-        if 'email_app' in self.config_attributes:
-            return [sub_config['config'] for sub_config in self.email_app]
+    def get_run_options_configs(self) -> List[Dict]:
+        """Returns the run options configs"""
+
+        if 'run_options' in self.config_attributes:
+            return [sub_config['config'] for sub_config in self.run_options]
         else:
-            raise ConfigurationError('Config property email_app not set!')
+            raise ConfigurationError('Config property run_options not set!')
 
-    def to_yml(self, fn: Union[str, _io.TextIOWrapper], include_tag=False) -> None:
-        """
-        Writes the configuration to a stream. For example a file.
+    def get_output_configs(self) -> List[Dict]:
+        """Returns the output configs"""
+        if 'output' in self.config_attributes:
+            return [sub_config['config'] for sub_config in self.output]
+        else:
+            raise ConfigurationError('Config property output not set!')
 
-        :param fn:
-        :param include_tag:
-        :return: None
+    def to_yml(self, fn: Union[str, _io.TextIOWrapper]) -> None:
+        """Writes the configuration to a stream. For example a file.
+
+        Args:
+            fn:
+
+        Returns:
+            None
         """
 
         dict_conf = dict()
         for config_attribute in self.config_attributes:
             dict_conf[config_attribute] = getattr(self, config_attribute)
 
-        if include_tag:
-            dict_conf['tag'] = self.tag
-
+        dict_conf['tag'] = self.tag
         if isinstance(fn, str):
             with open(fn, 'w') as f:
                 yaml.dump(dict_conf, f, default_flow_style=False)
@@ -153,10 +179,18 @@ class Configuration:
         return dict_conf
 
     def __getitem__(self, item):
+        """
+        Args:
+            item:
+        """
         return self.__getattribute__(item)
 
 
 class ConfigurationError(Exception):
     def __init__(self, message):
         # Call the base class constructor with the parameters it needs
+        """
+        Args:
+            message:
+        """
         super().__init__(message)
