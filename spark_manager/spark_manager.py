@@ -1,8 +1,12 @@
 import os
 import shutil
+import pathlib
+import csv
 from typing import List, Tuple, Dict
 import logging
 from functools import reduce
+import networkx as nx
+import pandas as pd
 import pyspark
 import pyspark.sql
 import pyspark.ml.feature
@@ -22,21 +26,26 @@ class SparkManager:
     """Manages the creation of the spark runtime along with any related file
     system operations.
     """
+
     __slots__ = ('spark_session', 'spark_context', 'sql_context',
-                 'graph_name', 'df_data_folder', 'checkpoints_folder', 'feature_names', 'has_edge_weights',
-                 'loop_counter')
+                 'graph_name', 'df_data_folder', 'saved_communities_folder', 'checkpoints_folder',
+                 'feature_names', 'features_to_check', 'nodes_encoding', 'has_edge_weights', 'loop_counter')
 
     spark_session: pyspark.sql.SparkSession
     spark_context: pyspark.SparkContext
     sql_context: pyspark.sql.SQLContext
     graph_name: str
     df_data_folder: str
+    saved_communities_folder: str
     checkpoints_folder: str
     feature_names: List
+    features_to_check: List
+    nodes_encoding: str
     has_edge_weights: bool
     loop_counter: int
 
-    def __init__(self, graph_name: str, feature_names: List, df_data_folder: str, checkpoints_folder: str,
+    def __init__(self, graph_name: str, feature_names: List, features_to_check: List,
+                 df_data_folder: str, saved_communities_folder: str, nodes_encoding: str, checkpoints_folder: str,
                  has_edge_weights: bool) -> None:
         """The basic constructor. Creates a new instance of SparkManager using
         the specified settings.
@@ -44,7 +53,10 @@ class SparkManager:
         Args:
             graph_name (str):
             feature_names (List):
+            features_to_check (List):
             df_data_folder (str):
+            saved_communities_folder (str):
+            nodes_encoding (str):
             checkpoints_folder (str):
             has_edge_weights (bool):
         """
@@ -54,8 +66,11 @@ class SparkManager:
         self.loop_counter = 0
         self.graph_name = graph_name
         self.feature_names = feature_names
+        self.features_to_check = features_to_check
         self.df_data_folder = os.path.join(df_data_folder, self.graph_name)
+        self.saved_communities_folder = os.path.join(saved_communities_folder, self.graph_name)
         self.checkpoints_folder = os.path.join(checkpoints_folder, self.graph_name)
+        self.nodes_encoding = nodes_encoding
         self.has_edge_weights = has_edge_weights
         # Delete old files
         self._clean_folder(folder_path=self.df_data_folder)
@@ -294,6 +309,58 @@ class SparkManager:
 
         logger.debug("Starting recursive union for %s dfs in %s steps" % (len(dfs_list), union_steps))
         return self._reduce_union(*self._recursive_union(dfs_list=dfs_list, union_steps=union_steps))
+
+    def graphframe_to_nx(self, g: GraphFrame) -> nx.Graph:
+        """Convert a GraphFrame to a NetworkX graph.
+
+        Args:
+            g (GraphFrame):
+        """
+
+        logger.debug("Converting GraphFrame to NetworkX..")
+        nodes_pd = g.vertices.toPandas()
+        edges_pd = g.edges.toPandas()
+        g_netx = nx.from_pandas_edgelist(df=edges_pd, source='src', target='dst')
+        for feature in self.features_to_check[1:]:
+            nx.set_node_attributes(G=g_netx, name=feature,
+                                   values=pd.Series(data=nodes_pd[feature],
+                                                    index=nodes_pd[self.features_to_check[0]]).to_dict())
+        return g_netx
+
+    def save_communities_to_csvs(self, g: GraphFrame):
+        """Save the different communities of the graph to different CSVs.
+
+        Args:
+            g (GraphFrame):
+        """
+
+        logger.info("Saving Graph's communities to CSVs..")
+        g_netx = self.graphframe_to_nx(g=g)
+        graph_components = [comp for comp in nx.connected_components(g_netx)]
+        # Create csv's with the communities data
+        csv_save_path = os.path.join(self.saved_communities_folder, 'Loop-{}'.format(self.loop_counter))
+        pathlib.Path(csv_save_path).mkdir(parents=True, exist_ok=True)
+        community_ind = 0
+        community_sizes = []
+        logger.debug("*** {:^20} ***".format("Showing info about the communities"))
+        logger.debug("{:^20}|{:^20}".format("Communities", "Number of Nodes"))
+        for graph_component in graph_components:
+            community_ind += 1
+            logger.debug("{:^20}|{:^20}".format(community_ind, len(graph_component)))
+            community_sizes.append(len(graph_component))
+
+            csv_file_name = 'community_{}.csv'.format(community_ind)
+            csv_full_path = os.path.join(csv_save_path, csv_file_name)
+            with open(file=csv_full_path, mode='w', newline='', encoding=self.nodes_encoding) as csv_file:
+                csv_writer = csv.writer(csv_file, delimiter='|')
+                csv_writer.writerow(['sep=|'])
+                csv_writer.writerow(self.features_to_check)
+                for node in graph_component:
+                    row = [node] + \
+                          [nx.get_node_attributes(G=g_netx, name=feat_name)[node]
+                           if node in list(nx.get_node_attributes(G=g_netx, name=feat_name)) else "UNKNOWN"
+                           for feat_name in self.features_to_check[1:]]
+                    csv_writer.writerow(row)
 
     @staticmethod
     def _reduce_union(dfs_list: List[pyspark.sql.DataFrame]) -> pyspark.sql.DataFrame:

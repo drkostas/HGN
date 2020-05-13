@@ -14,6 +14,7 @@ class GraphTools:
     """Manages the creation of the spark runtime along with any related file
     system operations.
     """
+
     __slots__ = ('sm', 'max_sp_length',)
 
     sm: sm_lib.SparkManager
