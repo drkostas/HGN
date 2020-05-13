@@ -218,7 +218,7 @@ def main() -> None:
                                     nodes_encoding=input_config['nodes']['encoding'],
                                     features_to_check=run_options_config['features_to_check'],
                                     df_data_folder=output_config['df_data_folder'],
-                                    saved_communities_folder=output_config['saved_communities_folder'],
+                                    saved_communities_folder=output_config['communities_csv_folder'],
                                     checkpoints_folder=output_config['checkpoints_folder'],
                                     has_edge_weights=input_config['edges']['has_weights'])
     gt = graph_tools.GraphTools(sm=sm, max_sp_length=run_options_config['max_sp_length'])
@@ -228,7 +228,6 @@ def main() -> None:
     logger.debug("Modified Graph Name: %s" % modified_graph_name)
     # Load nodes, edges and create GraphFrame
     g = load_graph(spark_manager=sm, config=input_config)
-    sm.save_communities_to_csvs(g=g)
     viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g),
                      loop_counter=sm.loop_counter, plot_dimensions=3)
 
@@ -256,9 +255,11 @@ def main() -> None:
                   run_options_config=run_options_config)
 
     logger.info("HGN Finished. Remaining edges: %s" % g.vertices.count())
-    sm.save_communities_to_csvs(g=g)
     viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g),
                      loop_counter=-1, plot_dimensions=3)
+    if output_config['save_communities_to_csvs']:
+        sm.save_communities_to_csvs(g=g)
+    logger.info("End of code.")
 
 
 if __name__ == '__main__':

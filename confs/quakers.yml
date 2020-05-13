@@ -47,11 +47,11 @@ output:
       logs_folder: data/logs
       df_data_folder: data/dataframes
       plots_folder: data/plots
-      saved_communities_folder: data/csv_data
+      communities_csv_folder: data/csv_data
       checkpoints_folder: data/checkpoints
-      cached_init_step: False
+      cached_init_step: false
+      save_communities_to_csvs: false
       plot_steps:
-        - 0
         - -1  # The Last step
       plot_final: true
 

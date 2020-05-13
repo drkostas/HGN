@@ -130,4 +130,10 @@ dmypy.json
 
 # PyCharm
 /.idea
-/tests/test_data/test_dropbox_cloudstore/*.txt
+
+# Custom
+spark-warehouse
+/data/checkpoints/*
+/data/csv_data/*
+/data/dataframes/*
+/data/plots/*
