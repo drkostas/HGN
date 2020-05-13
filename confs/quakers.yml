@@ -27,7 +27,6 @@ input:
         has_header: true
         has_weights: false
         delimiter: ','
-        encoding: ISO-8859-1
     type: local
 run_options:
   - config:
@@ -49,6 +48,7 @@ output:
       plots_folder: data/plots
       communities_csv_folder: data/csv_data
       checkpoints_folder: data/checkpoints
+      spark_warehouse_folder: data/spark-warehouse
       cached_init_step: false
       save_communities_to_csvs: false
       plot_steps:

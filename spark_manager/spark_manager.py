@@ -28,7 +28,7 @@ class SparkManager:
     """
 
     __slots__ = ('spark_session', 'spark_context', 'sql_context',
-                 'graph_name', 'df_data_folder', 'saved_communities_folder', 'checkpoints_folder',
+                 'graph_name', 'df_data_folder', 'saved_communities_folder',
                  'feature_names', 'features_to_check', 'nodes_encoding', 'has_edge_weights', 'loop_counter')
 
     spark_session: pyspark.sql.SparkSession
@@ -37,7 +37,6 @@ class SparkManager:
     graph_name: str
     df_data_folder: str
     saved_communities_folder: str
-    checkpoints_folder: str
     feature_names: List
     features_to_check: List
     nodes_encoding: str
@@ -46,7 +45,7 @@ class SparkManager:
 
     def __init__(self, graph_name: str, feature_names: List, features_to_check: List,
                  df_data_folder: str, saved_communities_folder: str, nodes_encoding: str, checkpoints_folder: str,
-                 has_edge_weights: bool) -> None:
+                 spark_warehouse_folder: str, has_edge_weights: bool) -> None:
         """The basic constructor. Creates a new instance of SparkManager using
         the specified settings.
 
@@ -69,21 +68,39 @@ class SparkManager:
         self.features_to_check = features_to_check
         self.df_data_folder = os.path.join(df_data_folder, self.graph_name)
         self.saved_communities_folder = os.path.join(saved_communities_folder, self.graph_name)
-        self.checkpoints_folder = os.path.join(checkpoints_folder, self.graph_name)
         self.nodes_encoding = nodes_encoding
         self.has_edge_weights = has_edge_weights
+        checkpoints_folder = os.path.join(checkpoints_folder, self.graph_name)
+        spark_warehouse_folder = os.path.join(spark_warehouse_folder, self.graph_name)
         # Delete old files
         self._clean_folder(folder_path=self.df_data_folder)
-        self._clean_folder(folder_path=self.checkpoints_folder)
+        self._clean_folder(folder_path=checkpoints_folder)
+        self._clean_folder(folder_path=spark_warehouse_folder)
         # Configure spark properties
         conf = pyspark.SparkConf()
         conf.setMaster("local[*]") \
             .setAppName(self.graph_name) \
             .set("spark.submit.deployMode", "client") \
-            .set("spark.ui.port", "4040")
+            .set("spark.ui.port", "4040") \
+            .set("spark.executor.memoryOverhead", "1024") \
+            .set("spark.driver.memoryOverhead", "1024") \
+            .set("spark.executor.instances", "2") \
+            .set("spark.executor.cores", "2") \
+            .set("spark.executor.memory", "1g") \
+            .set("spark.driver.cores", "5") \
+            .set("spark.driver.memory", "5g") \
+            .set("spark.default.parallelism", "8") \
+            .set("spark.sql.shuffle.partitions", "8") \
+            .set("spark.network.timeout", "3600s") \
+            .set("spark.driver.maxResultSize", "0") \
+            .set("spark.sql.broadcastTimeout", "3600") \
+            .set("spark.sql.autoBroadcastJoinThreshold", "-1") \
+            .set("spark.worker.cleanup.enabled", "true") \
+            .set("spark.sql.warehouse.dir", spark_warehouse_folder)
         # Instantiate Spark
         self.spark_session = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
         self.spark_context = self.spark_session.sparkContext
+        self.spark_context.setCheckpointDir(checkpoints_folder)
         self.sql_context = pyspark.sql.SQLContext(self.spark_context)
 
     @staticmethod

@@ -152,6 +152,7 @@ def main_loop(g: spark_manager.GraphFrame,
         g (spark_manager.GraphFrame):
         sm (spark_manager.SparkManager):
         gt (graph_tools.GraphTools):
+        viz (plotly_visualizer.PlotlyVisualizer):
         cosine_similarities (spark_manager.pyspark.sql.DataFrame):
         edge_betweenness (spark_manager.pyspark.sql.DataFrame):
         run_options_config (Dict):
@@ -199,8 +200,7 @@ def main_loop(g: spark_manager.GraphFrame,
             .select("src", "dst") \
             .union(edges_r.filter("keepit == True").select("src", "dst"))
         g = sm.GraphFrame(g.vertices, edges_to_keep).dropIsolatedVertices()
-        viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g),
-                         loop_counter=sm.loop_counter, plot_dimensions=3)
+        viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter, plot_dimensions=3)
 
     return g
 
@@ -220,6 +220,7 @@ def main() -> None:
                                     df_data_folder=output_config['df_data_folder'],
                                     saved_communities_folder=output_config['communities_csv_folder'],
                                     checkpoints_folder=output_config['checkpoints_folder'],
+                                    spark_warehouse_folder=output_config['spark_warehouse_folder'],
                                     has_edge_weights=input_config['edges']['has_weights'])
     gt = graph_tools.GraphTools(sm=sm, max_sp_length=run_options_config['max_sp_length'])
     viz = plotly_visualizer.PlotlyVisualizer(plots_folder=output_config['plots_folder'],
@@ -228,8 +229,8 @@ def main() -> None:
     logger.debug("Modified Graph Name: %s" % modified_graph_name)
     # Load nodes, edges and create GraphFrame
     g = load_graph(spark_manager=sm, config=input_config)
-    viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g),
-                     loop_counter=sm.loop_counter, plot_dimensions=3)
+    logger.debug("Loaded Graph. Nodes: %s, Edges: %s" % (g.vertices.count(), g.edges.count()))
+    viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter, plot_dimensions=3)
 
     # Compute Betweenness and Cosine Similarities
     if output_config['cached_init_step']:
@@ -254,9 +255,8 @@ def main() -> None:
                   cosine_similarities=cosine_similarities, edge_betweenness=edge_betweenness,
                   run_options_config=run_options_config)
 
-    logger.info("HGN Finished. Remaining edges: %s" % g.vertices.count())
-    viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g),
-                     loop_counter=-1, plot_dimensions=3)
+    logger.debug("HGN Finished. Nodes: %s, Edges: %s" % (g.vertices.count(), g.edges.count()))
+    viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=-1, plot_dimensions=3)
     if output_config['save_communities_to_csvs']:
         sm.save_communities_to_csvs(g=g)
     logger.info("End of code.")

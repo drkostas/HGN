@@ -132,8 +132,8 @@ dmypy.json
 /.idea
 
 # Custom
-spark-warehouse
 /data/checkpoints/*
 /data/csv_data/*
 /data/dataframes/*
 /data/plots/*
+/data/spark-warehouse/*
