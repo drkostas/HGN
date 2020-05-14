@@ -14,14 +14,15 @@ logger = logging.getLogger('Configuration')
 class Configuration:
     """Handles the loading of the configuration settings from a yml file."""
 
-    __slots__ = ('config', 'config_path', 'datastore', 'input', 'run_options', 'output', 'tag')
+    __slots__ = ('config', 'config_path', 'datastore', 'spark', 'input', 'run_options', 'output', 'tag')
 
     config: Dict
     config_path: str
     datastore: Dict
+    spark: Dict
     input: Dict
     run_options: Dict
-    run_options: Dict
+    output: Dict
     tag: str
     config_attributes: List = []
     env_variable_tag: str = '!ENV'
@@ -48,7 +49,7 @@ class Configuration:
         # validate_json_schema(self.config, configuration_schema)
         # Set the config properties as instance attributes
         self.tag = self.config['tag']
-        all_config_attributes = ('datastore', 'input', 'run_options', 'output')
+        all_config_attributes = ('datastore', 'spark', 'input', 'run_options', 'output')
         for config_attribute in all_config_attributes:
             if config_attribute in self.config.keys():
                 setattr(self, config_attribute, self.config[config_attribute])
@@ -122,6 +123,14 @@ class Configuration:
             return [sub_config['config'] for sub_config in self.datastore]
         else:
             raise ConfigurationError('Config property datastore not set!')
+
+    def get_spark_configs(self) -> List[Dict]:
+        """Returns the input configs."""
+
+        if 'spark' in self.config_attributes:
+            return [sub_config['config'] for sub_config in self.spark]
+        else:
+            raise ConfigurationError('Config property spark not set!')
 
     def get_input_configs(self) -> List[Dict]:
         """Returns the input configs."""

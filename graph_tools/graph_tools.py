@@ -101,14 +101,14 @@ class GraphTools:
         # self.max_sp_length = self.get_max_length(sp_lengths)
         # Calculate all the motifs(paths) with lengths between 1 and self.max_sp_length
         possible_motifs = self.generate_all_possible_motifs(g=g)
-        self.sm.unpersist_all_rdds()
+        self.sm.unpersist_all()
         # Calculate all-pairs shortest paths using the distances and the motifs
         shortest_paths_list = self.find_shortest_paths_from_motifs(sp_lengths=sp_lengths,
                                                                    possible_motifs=possible_motifs)
         # Create the shortest paths df from a of shortest paths
         logger.info("Creating the shortest paths df from a of shortest paths..")
         shortest_paths_df = self.sm.get_shortest_paths_df(shortest_paths_list=shortest_paths_list)
-        self.sm.unpersist_all_rdds()
+        self.sm.unpersist_all()
 
         return shortest_paths_df
 
@@ -248,7 +248,6 @@ class GraphTools:
 
         # max_edges_df = find_max_betweenness_edges(edge_occurrences_df)
         # edges_df = filterout_max_edges(edges_df, max_edges_df)
-
         return edge_occurrences_df
 
     @staticmethod

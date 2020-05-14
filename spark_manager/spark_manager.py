@@ -27,36 +27,34 @@ class SparkManager:
     system operations.
     """
 
-    __slots__ = ('spark_session', 'spark_context', 'sql_context',
-                 'graph_name', 'df_data_folder', 'saved_communities_folder',
-                 'feature_names', 'features_to_check', 'nodes_encoding', 'has_edge_weights', 'loop_counter')
+    __slots__ = ('spark_session', 'spark_context', 'sql_context', 'spark_conf',
+                 'graph_name', 'df_data_folder', 'communities_csv_folder', 'loop_counter',
+                 'feature_names', 'features_to_check', 'nodes_encoding', 'has_edge_weights')
 
     spark_session: pyspark.sql.SparkSession
     spark_context: pyspark.SparkContext
     sql_context: pyspark.sql.SQLContext
+    spark_conf: Dict
     graph_name: str
     df_data_folder: str
-    saved_communities_folder: str
+    communities_csv_folder: str
     feature_names: List
     features_to_check: List
     nodes_encoding: str
     has_edge_weights: bool
     loop_counter: int
 
-    def __init__(self, graph_name: str, feature_names: List, features_to_check: List,
-                 df_data_folder: str, saved_communities_folder: str, nodes_encoding: str, checkpoints_folder: str,
-                 spark_warehouse_folder: str, has_edge_weights: bool) -> None:
+    def __init__(self, spark_conf: Dict, graph_name: str, feature_names: List, features_to_check: List,
+                 nodes_encoding: str, has_edge_weights: bool) -> None:
         """The basic constructor. Creates a new instance of SparkManager using
         the specified settings.
 
         Args:
+            spark_conf:
             graph_name (str):
             feature_names (List):
             features_to_check (List):
-            df_data_folder (str):
-            saved_communities_folder (str):
             nodes_encoding (str):
-            checkpoints_folder (str):
             has_edge_weights (bool):
         """
 
@@ -66,37 +64,25 @@ class SparkManager:
         self.graph_name = graph_name
         self.feature_names = feature_names
         self.features_to_check = features_to_check
-        self.df_data_folder = os.path.join(df_data_folder, self.graph_name)
-        self.saved_communities_folder = os.path.join(saved_communities_folder, self.graph_name)
+        self.df_data_folder = os.path.join(spark_conf['dirs']['df_data_folder'], self.graph_name)
+        self.communities_csv_folder = os.path.join(spark_conf['dirs']['communities_csv_folder'], self.graph_name)
         self.nodes_encoding = nodes_encoding
         self.has_edge_weights = has_edge_weights
-        checkpoints_folder = os.path.join(checkpoints_folder, self.graph_name)
-        spark_warehouse_folder = os.path.join(spark_warehouse_folder, self.graph_name)
+        checkpoints_folder = os.path.join(spark_conf['dirs']['checkpoints_folder'], self.graph_name)
+        spark_warehouse_folder = os.path.join(spark_conf['dirs']['spark_warehouse_folder'], self.graph_name)
         # Delete old files
         self._clean_folder(folder_path=self.df_data_folder)
+        self._clean_folder(folder_path=self.communities_csv_folder)
         self._clean_folder(folder_path=checkpoints_folder)
         self._clean_folder(folder_path=spark_warehouse_folder)
         # Configure spark properties
         conf = pyspark.SparkConf()
         conf.setMaster("local[*]") \
             .setAppName(self.graph_name) \
-            .set("spark.submit.deployMode", "client") \
-            .set("spark.ui.port", "4040") \
-            .set("spark.executor.memoryOverhead", "1024") \
-            .set("spark.driver.memoryOverhead", "1024") \
-            .set("spark.executor.instances", "2") \
-            .set("spark.executor.cores", "2") \
-            .set("spark.executor.memory", "1g") \
-            .set("spark.driver.cores", "5") \
-            .set("spark.driver.memory", "5g") \
-            .set("spark.default.parallelism", "8") \
-            .set("spark.sql.shuffle.partitions", "8") \
-            .set("spark.network.timeout", "3600s") \
-            .set("spark.driver.maxResultSize", "0") \
-            .set("spark.sql.broadcastTimeout", "3600") \
-            .set("spark.sql.autoBroadcastJoinThreshold", "-1") \
-            .set("spark.worker.cleanup.enabled", "true") \
             .set("spark.sql.warehouse.dir", spark_warehouse_folder)
+        [conf.set(str(key), str(value)) for key, value in spark_conf['spark_conf'].items()]
+        logger.debug("Initializing Spark Session with conf:")
+        logger.debug(conf.getAll())
         # Instantiate Spark
         self.spark_session = pyspark.sql.SparkSession.builder.config(conf=conf).getOrCreate()
         self.spark_context = self.spark_session.sparkContext
@@ -258,7 +244,8 @@ class SparkManager:
             pre_final (bool):
         """
 
-        logger.debug("Saving %s to parquet.." % name)
+        logger.debug("Saving %s to parquet.." % name if not pre_final
+                     else "Saving %s.pre_final to parquet.." % name)
         path = os.path.join(self.df_data_folder, name, str(self.loop_counter))
         if not os.path.exists(path):
             os.makedirs(path)
@@ -284,7 +271,8 @@ class SparkManager:
             pre_final (bool):
         """
 
-        logger.debug("Loading from parquet %s.." % name)
+        logger.debug("Loading from parquet %s.." % name if not pre_final
+                     else "Loading from parquet %s.pre_final.." % name)
         path = os.path.join(self.df_data_folder, name, str(self.loop_counter))
         if pre_final:
             parquet_name = os.path.join(path, name + ".pre_final.parquet")
@@ -295,11 +283,12 @@ class SparkManager:
 
         return df
 
-    def unpersist_all_rdds(self) -> None:
+    def unpersist_all(self) -> None:
         """Unpersists all the rdds using the internal java spark context."""
 
         logger.debug('Unpersisting all RDDs..')
         [rdd.unpersist() for rdd in list(self.spark_context._jsc.getPersistentRDDs().values())]
+        self.spark_session.catalog.clearCache()
 
     @staticmethod
     def repartition_dfs_list(dfs_list: List[pyspark.sql.DataFrame], num_partitions: int):
@@ -355,7 +344,7 @@ class SparkManager:
         g_netx = self.graphframe_to_nx(g=g)
         graph_components = [comp for comp in nx.connected_components(g_netx)]
         # Create csv's with the communities data
-        csv_save_path = os.path.join(self.saved_communities_folder, 'Loop-{}'.format(self.loop_counter))
+        csv_save_path = os.path.join(self.communities_csv_folder, 'Loop-{}'.format(self.loop_counter))
         pathlib.Path(csv_save_path).mkdir(parents=True, exist_ok=True)
         community_ind = 0
         community_sizes = []
@@ -461,7 +450,8 @@ class SparkManager:
                     dfs_list[df_count] = dfs_list[df_count].select('*', dfs_list[df_count][
                         '{}_tmp'.format(missing_column)].cast(edges_schema).alias(missing_column)) \
                         .drop('{}_tmp'.format(missing_column))
-                yield dfs_list[df_count]
+
+            yield dfs_list[df_count]
 
     @staticmethod
     def _clean_folder(folder_path: str) -> None:
@@ -471,7 +461,7 @@ class SparkManager:
             folder_path (str):
         """
 
-        logger.debug("Clearing all elements from folder %s.." % folder_path)
+        logger.debug("Clearing all files/folders from folder %s.." % folder_path)
         if os.path.exists(folder_path):
             shutil.rmtree(folder_path, ignore_errors=True)
         os.makedirs(folder_path)

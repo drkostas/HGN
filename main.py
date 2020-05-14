@@ -1,7 +1,7 @@
 # Core
 import os
 import traceback
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 import logging
 import argparse
 
@@ -65,7 +65,7 @@ def _argparser() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup() -> Tuple[Dict, Dict, Dict, str]:
+def setup() -> Tuple[Dict, Dict, Dict, Dict, str]:
     """Setup the configuration and the run properties."""
 
     args = _argparser()
@@ -77,6 +77,7 @@ def setup() -> Tuple[Dict, Dict, Dict, str]:
                         )
     # Load the configuration
     config = Configuration(config_src=args.config_file)
+    spark_config = config.get_spark_configs()[0]
     input_config = config.get_input_configs()[0]
     run_options_config = config.get_run_options_configs()[0]
     output_config = config.get_output_configs()[0]
@@ -89,7 +90,7 @@ def setup() -> Tuple[Dict, Dict, Dict, str]:
                 feats=''.join([feat[:10] for feat in run_options_config['features_to_check'][1:]]))
     modified_graph_name = os.path.join(input_config['name'], options_id_name)
     _setup_log(os.path.join(output_config['logs_folder'], modified_graph_name + '.log'), debug=args.debug)
-    return input_config, run_options_config, output_config, modified_graph_name
+    return spark_config, input_config, run_options_config, output_config, modified_graph_name
 
 
 def load_graph(spark_manager: spark_manager.SparkManager, config: Dict) -> spark_manager.GraphFrame:
@@ -112,9 +113,9 @@ def load_graph(spark_manager: spark_manager.SparkManager, config: Dict) -> spark
 
 
 def get_edges_to_delete(edge_weights: spark_manager.pyspark.sql.DataFrame,
-                    edge_betweenness: spark_manager.pyspark.sql.DataFrame,
-                    max_edge_weight: float,
-                    betweenness_thres: float) -> spark_manager.pyspark.sql.DataFrame:
+                        edge_betweenness: spark_manager.pyspark.sql.DataFrame,
+                        max_edge_weight: float,
+                        betweenness_thres: float) -> spark_manager.pyspark.sql.DataFrame:
     """Delete edges based on edge weights and edge betweenness.
 
     Args:
@@ -127,10 +128,10 @@ def get_edges_to_delete(edge_weights: spark_manager.pyspark.sql.DataFrame,
     logger.info("Deciding which edges to delete based on edge weights and edge betweenness..")
     # noinspection PyTypeChecker
     edges_to_delete_1 = edge_weights.join(edge_betweenness, [edge_weights.src == edge_betweenness.edges.src,
-                                                       edge_weights.dst == edge_betweenness.edges.dst], "inner")
+                                                             edge_weights.dst == edge_betweenness.edges.dst], "inner")
     # noinspection PyTypeChecker
     edges_to_delete_2 = edge_weights.join(edge_betweenness, [edge_weights.src == edge_betweenness.edges.dst,
-                                                       edge_weights.dst == edge_betweenness.edges.src], "inner")
+                                                             edge_weights.dst == edge_betweenness.edges.src], "inner")
     full_edges_to_delete = edges_to_delete_1.union(edges_to_delete_2) \
         .filter("(edge_weight < {0}) OR (edge_weight >= {0} AND betweenness > {1})".format(max_edge_weight,
                                                                                            betweenness_thres)) \
@@ -139,13 +140,15 @@ def get_edges_to_delete(edge_weights: spark_manager.pyspark.sql.DataFrame,
 
     return full_edges_to_delete
 
+
 def main_loop(g: spark_manager.GraphFrame,
               sm: spark_manager.SparkManager,
               gt: graph_tools.GraphTools,
               viz: plotly_visualizer.PlotlyVisualizer,
               cosine_similarities: spark_manager.pyspark.sql.DataFrame,
               edge_betweenness: spark_manager.pyspark.sql.DataFrame,
-              run_options_config: Dict) -> spark_manager.GraphFrame:
+              run_options_config: Dict,
+              plot_steps: List[int]) -> spark_manager.GraphFrame:
     """The main loop.
 
     Args:
@@ -156,6 +159,7 @@ def main_loop(g: spark_manager.GraphFrame,
         cosine_similarities (spark_manager.pyspark.sql.DataFrame):
         edge_betweenness (spark_manager.pyspark.sql.DataFrame):
         run_options_config (Dict):
+        plot_steps:
     """
 
     logger.info("Starting the Main Loop..")
@@ -164,20 +168,20 @@ def main_loop(g: spark_manager.GraphFrame,
         sm.loop_counter += 1
         logger.info("*** Loop %s ***" % sm.loop_counter)
         # Scan neighborhoods and filter edges based on the r metrics
-        sm.unpersist_all_rdds()
+        sm.unpersist_all()
         lvl1_neighbors, lvl2_neighbors, \
         edges_r = gt.filter_edges_based_on_r_metrics(g=g,
                                                      r_lvl1_thres=run_options_config['r_lvl1_thres'],
                                                      r_lvl2_thres=run_options_config['r_lvl2_thres'])
         edges_r = sm.reload_df(df=edges_r, name='edges_r')
         # Calculate the edge weights
-        sm.unpersist_all_rdds()
+        sm.unpersist_all()
         edges_weights = gt.calculate_edge_weights(edges_r=edges_r,
                                                   cosine_similarities=cosine_similarities,
                                                   feature_min_avg=run_options_config['feature_min_avg'])
         edges_weights = sm.reload_df(df=edges_weights, name='edges_weights')
         # Delete Edges based on Edge Weights and Edge Betweenness
-        sm.unpersist_all_rdds()
+        sm.unpersist_all()
         edges_to_delete = get_edges_to_delete(edge_weights=edges_weights, edge_betweenness=edge_betweenness,
                                               max_edge_weight=run_options_config['max_edge_weight'],
                                               betweenness_thres=run_options_config['betweenness_thres'])
@@ -200,7 +204,8 @@ def main_loop(g: spark_manager.GraphFrame,
             .select("src", "dst") \
             .union(edges_r.filter("keepit == True").select("src", "dst"))
         g = sm.GraphFrame(g.vertices, edges_to_keep).dropIsolatedVertices()
-        viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter, plot_dimensions=3)
+        if sm.loop_counter in plot_steps:
+            viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter, plot_dimensions=3)
 
     return g
 
@@ -212,25 +217,23 @@ def main() -> None:
     """
 
     # Initializing
-    input_config, run_options_config, output_config, modified_graph_name = setup()
-    sm = spark_manager.SparkManager(graph_name=modified_graph_name,
+    spark_config, input_config, run_options_config, output_config, modified_graph_name = setup()
+    plot_steps = output_config['plot_steps']
+    print("spark_config", spark_config)
+    sm = spark_manager.SparkManager(spark_conf=spark_config,graph_name=modified_graph_name,
                                     feature_names=input_config['nodes']['feature_names'],
                                     nodes_encoding=input_config['nodes']['encoding'],
                                     features_to_check=run_options_config['features_to_check'],
-                                    df_data_folder=output_config['df_data_folder'],
-                                    saved_communities_folder=output_config['communities_csv_folder'],
-                                    checkpoints_folder=output_config['checkpoints_folder'],
-                                    spark_warehouse_folder=output_config['spark_warehouse_folder'],
                                     has_edge_weights=input_config['edges']['has_weights'])
     gt = graph_tools.GraphTools(sm=sm, max_sp_length=run_options_config['max_sp_length'])
     viz = plotly_visualizer.PlotlyVisualizer(plots_folder=output_config['plots_folder'],
-                                             plot_name=modified_graph_name,
-                                             plot_steps=output_config['plot_steps'])
+                                             plot_name=modified_graph_name)
     logger.debug("Modified Graph Name: %s" % modified_graph_name)
     # Load nodes, edges and create GraphFrame
     g = load_graph(spark_manager=sm, config=input_config)
     logger.debug("Loaded Graph. Nodes: %s, Edges: %s" % (g.vertices.count(), g.edges.count()))
-    viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter, plot_dimensions=3)
+    if sm.loop_counter in plot_steps:
+        viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter, plot_dimensions=3)
 
     # Compute Betweenness and Cosine Similarities
     if output_config['cached_init_step']:
@@ -253,10 +256,11 @@ def main() -> None:
     # Start the Main Loop of the HGN
     g = main_loop(g=g, sm=sm, gt=gt, viz=viz,
                   cosine_similarities=cosine_similarities, edge_betweenness=edge_betweenness,
-                  run_options_config=run_options_config)
+                  run_options_config=run_options_config, plot_steps=plot_steps)
 
     logger.debug("HGN Finished. Nodes: %s, Edges: %s" % (g.vertices.count(), g.edges.count()))
-    viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=-1, plot_dimensions=3)
+    if -1 in plot_steps:
+        viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=-1, plot_dimensions=3)
     if output_config['save_communities_to_csvs']:
         sm.save_communities_to_csvs(g=g)
     logger.info("End of code.")

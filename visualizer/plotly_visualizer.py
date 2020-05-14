@@ -18,12 +18,11 @@ logger = ColorLog(logging.getLogger('PlotlyVisualizer'), "yellow")
 class PlotlyVisualizer(AbstractVisualizer):
     """Manages the plotting of an input GraphFrame"""
 
-    __slots__ = ('plots_folder', 'plot_name', 'plot_path', 'plot_steps')
+    __slots__ = ('plots_folder', 'plot_name', 'plot_path')
 
     plots_folder: str
     plot_name: str
     plot_path: str
-    plot_steps: List[int]
     custom_color_scale: List \
         = [[0.0, 'rgb(50, 245, 155)'], [0.01, 'rgb(49, 136, 169)'], [0.02, 'rgb(235, 120, 83)'],
            [0.03, 'rgb(158, 209, 161)'], [0.04, 'rgb(94, 122, 90)'], [0.06, 'rgb(104, 214, 214)'],
@@ -56,18 +55,16 @@ class PlotlyVisualizer(AbstractVisualizer):
            [0.94, 'rgb(230, 62, 249)'], [0.96, 'rgb(33, 107, 220)'], [0.97, 'rgb(180, 40, 102)'],
            [0.98, 'rgb(70, 20, 200)'], [0.99, 'rgb(225, 43, 169)'], [1.0, 'rgb(8, 244, 127)']]
 
-    def __init__(self, plots_folder: str, plot_name: str, plot_steps: List[int]) -> None:
+    def __init__(self, plots_folder: str, plot_name: str) -> None:
         """The basic constructor. Creates a new instance of SparkManager using
         the specified settings.
 
         Args:
             plots_folder (str):
             plot_name (str):
-            plot_steps (List[int):
         """
 
         logger.info("Initializing PlotlyVisualizer..")
-        self.plot_steps = plot_steps
         self.plots_folder = plots_folder
         self.plot_name = plot_name
         self.plot_path = os.path.join(self.plots_folder, self.plot_name)
@@ -85,9 +82,6 @@ class PlotlyVisualizer(AbstractVisualizer):
             save_as_image (bool):
             custom_node_labels (Dict):
         """
-
-        if loop_counter not in self.plot_steps:
-            return
 
         if plot_dimensions == 2:
             self._scatter_plot_2d(g_netx=g_netx, loop_counter=loop_counter, save_as_image=save_as_image,
