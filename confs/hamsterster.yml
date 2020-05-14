@@ -21,60 +21,64 @@ spark:
         spark.driver.memory: 8g
         spark.driver.memoryOverhead: 4096
         spark.driver.maxResultSize: 0
-        spark.executor.instances: 1
+        spark.executor.instances: 2
         spark.executor.cores: 3
         spark.executor.memory: 4g
         spark.executor.memoryOverhead: 4096
         spark.sql.broadcastTimeout: 3600
         spark.sql.autoBroadcastJoinThreshold: -1
-        spark.sql.shuffle.partitions: 2
-        spark.default.parallelism: 2
+        spark.sql.shuffle.partitions: 4
+        spark.default.parallelism: 4
         spark.network.timeout: 3600s
         spark_warehouse_folder: data/spark-warehouse
 input:
   - config:
-      name: Quakers
+      name: Hamsterster
       nodes:
-        path: data/input_graphs/Quakers/quakers_nodelist.csv2
+        path: data/input_graphs/Hamsterster/nodes
         has_header: true
-        delimiter: ','
+        delimiter: '|'
         encoding: ISO-8859-1
-        feature_names:
+        feature_names:  # You can set custom names here
           - id
-          - Historical_Significance
-          - Gender
-          - Birthdate
-          - Deathdate
-          - internal_id
+          - name
+          - joined
+          - species
+          - coloring
+          - gender
+          - birthday
+          - age
+          - hometown
+          - favorite_toy
+          - favorite_activity
+          - favorite_foo
       edges:
-        path: data/input_graphs/Quakers/quakers_edgelist.csv2
+        path: data/input_graphs/Hamsterster/edges
         has_header: true
         has_weights: false
-        delimiter: ','
+        delimiter: ' '
     type: local
 run_options:
   - config:
-      cached_init_step: false
       feature_min_avg: 0.33
       r_lvl1_thres: 0.50
       r_lvl2_thres: 0.85
       max_edge_weight: 0.50
       betweenness_thres: 10
       max_sp_length: 2
-      min_comp_size: 2
-      max_steps: 30
+      min_comp_size: 100
+      max_steps: 5000
       features_to_check:
         - id
-        - Gender
+        - species
+        - coloring
+        - hometown
 output:
   - config:
       logs_folder: data/logs
+      plots_folder: data/plots
+      cached_init_step: false
       save_communities_to_csvs: false
-      visualizer:
-        dimensions: 3
-        save_img: true
-        folder: data/plots
-        steps:
-          - 0
-          - -1  # The Last step
-
+      plot_steps:
+#        - 0
+        - -1  # The Last step

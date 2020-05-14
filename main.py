@@ -148,7 +148,8 @@ def main_loop(g: spark_manager.GraphFrame,
               cosine_similarities: spark_manager.pyspark.sql.DataFrame,
               edge_betweenness: spark_manager.pyspark.sql.DataFrame,
               run_options_config: Dict,
-              plot_steps: List[int]) -> spark_manager.GraphFrame:
+              plot_steps: List[int],
+              plot_dims: int) -> spark_manager.GraphFrame:
     """The main loop.
 
     Args:
@@ -205,7 +206,8 @@ def main_loop(g: spark_manager.GraphFrame,
             .union(edges_r.filter("keepit == True").select("src", "dst"))
         g = sm.GraphFrame(g.vertices, edges_to_keep).dropIsolatedVertices()
         if sm.loop_counter in plot_steps:
-            viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter, plot_dimensions=3)
+            viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter,
+                             plot_dimensions=plot_dims)
 
     return g
 
@@ -218,25 +220,26 @@ def main() -> None:
 
     # Initializing
     spark_config, input_config, run_options_config, output_config, modified_graph_name = setup()
-    plot_steps = output_config['plot_steps']
-    print("spark_config", spark_config)
+    plot_steps = output_config['visualizer']['steps']
     sm = spark_manager.SparkManager(spark_conf=spark_config,graph_name=modified_graph_name,
                                     feature_names=input_config['nodes']['feature_names'],
                                     nodes_encoding=input_config['nodes']['encoding'],
                                     features_to_check=run_options_config['features_to_check'],
                                     has_edge_weights=input_config['edges']['has_weights'])
     gt = graph_tools.GraphTools(sm=sm, max_sp_length=run_options_config['max_sp_length'])
-    viz = plotly_visualizer.PlotlyVisualizer(plots_folder=output_config['plots_folder'],
-                                             plot_name=modified_graph_name)
+    viz = plotly_visualizer.PlotlyVisualizer(plots_folder=output_config['visualizer']['folder'],
+                                             plot_name=modified_graph_name,
+                                             save_img=output_config['visualizer']['save_img'])
     logger.debug("Modified Graph Name: %s" % modified_graph_name)
     # Load nodes, edges and create GraphFrame
     g = load_graph(spark_manager=sm, config=input_config)
     logger.debug("Loaded Graph. Nodes: %s, Edges: %s" % (g.vertices.count(), g.edges.count()))
     if sm.loop_counter in plot_steps:
-        viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter, plot_dimensions=3)
+        viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=sm.loop_counter,
+                         plot_dimensions=output_config['visualizer']['dimensions'])
 
     # Compute Betweenness and Cosine Similarities
-    if output_config['cached_init_step']:
+    if run_options_config['cached_init_step']:
         cosine_similarities = sm.load_from_parquet('cosine_similarities')
         edge_betweenness = sm.load_from_parquet('edge_betweenness')
     else:
@@ -256,11 +259,13 @@ def main() -> None:
     # Start the Main Loop of the HGN
     g = main_loop(g=g, sm=sm, gt=gt, viz=viz,
                   cosine_similarities=cosine_similarities, edge_betweenness=edge_betweenness,
-                  run_options_config=run_options_config, plot_steps=plot_steps)
+                  run_options_config=run_options_config,
+                  plot_steps=plot_steps, plot_dims=output_config['visualizer']['dimensions'])
 
     logger.debug("HGN Finished. Nodes: %s, Edges: %s" % (g.vertices.count(), g.edges.count()))
     if -1 in plot_steps:
-        viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=-1, plot_dimensions=3)
+        viz.scatter_plot(g_netx=sm.graphframe_to_nx(g=g), loop_counter=-1,
+                         plot_dimensions=output_config['visualizer']['dimensions'])
     if output_config['save_communities_to_csvs']:
         sm.save_communities_to_csvs(g=g)
     logger.info("End of code.")

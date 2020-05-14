@@ -50,7 +50,7 @@ class SparkManager:
         the specified settings.
 
         Args:
-            spark_conf:
+            spark_conf (Dict):
             graph_name (str):
             feature_names (List):
             features_to_check (List):

@@ -18,11 +18,13 @@ logger = ColorLog(logging.getLogger('PlotlyVisualizer'), "yellow")
 class PlotlyVisualizer(AbstractVisualizer):
     """Manages the plotting of an input GraphFrame"""
 
-    __slots__ = ('plots_folder', 'plot_name', 'plot_path')
+    __slots__ = ('plots_folder', 'plot_name', 'plot_path', 'dimensions', 'save_img')
 
     plots_folder: str
     plot_name: str
     plot_path: str
+    dimensions: int
+    save_img: bool
     custom_color_scale: List \
         = [[0.0, 'rgb(50, 245, 155)'], [0.01, 'rgb(49, 136, 169)'], [0.02, 'rgb(235, 120, 83)'],
            [0.03, 'rgb(158, 209, 161)'], [0.04, 'rgb(94, 122, 90)'], [0.06, 'rgb(104, 214, 214)'],
@@ -55,61 +57,172 @@ class PlotlyVisualizer(AbstractVisualizer):
            [0.94, 'rgb(230, 62, 249)'], [0.96, 'rgb(33, 107, 220)'], [0.97, 'rgb(180, 40, 102)'],
            [0.98, 'rgb(70, 20, 200)'], [0.99, 'rgb(225, 43, 169)'], [1.0, 'rgb(8, 244, 127)']]
 
-    def __init__(self, plots_folder: str, plot_name: str) -> None:
+    def __init__(self, plots_folder: str, plot_name: str, save_img: bool) -> None:
         """The basic constructor. Creates a new instance of SparkManager using
         the specified settings.
 
         Args:
             plots_folder (str):
             plot_name (str):
+            save_img (bool):
         """
 
         logger.info("Initializing PlotlyVisualizer..")
         self.plots_folder = plots_folder
         self.plot_name = plot_name
+        self.save_img = save_img
         self.plot_path = os.path.join(self.plots_folder, self.plot_name)
         pathlib.Path(self.plot_path).mkdir(parents=True, exist_ok=True)
         super().__init__()
 
     def scatter_plot(self, g_netx: nx.Graph, loop_counter: int, plot_dimensions: int = 3,
-                     save_as_image: bool = False, custom_node_labels: Dict = None) -> None:
+                     custom_node_labels: Dict = None) -> None:
         """Creates a 2d or a 3d plotly scatter plot.
 
         Args:
             g_netx (nx.Graph):
             loop_counter (int):
             plot_dimensions (int):
-            save_as_image (bool):
             custom_node_labels (Dict):
         """
 
         if plot_dimensions == 2:
-            self._scatter_plot_2d(g_netx=g_netx, loop_counter=loop_counter, save_as_image=save_as_image,
-                                  custom_node_labels=custom_node_labels)
+            self._scatter_plot_2d(g_netx=g_netx, loop_counter=loop_counter, custom_node_labels=custom_node_labels)
         elif plot_dimensions == 3:
-            self._scatter_plot_3d(g_netx=g_netx, loop_counter=loop_counter, save_as_image=save_as_image,
-                                  custom_node_labels=custom_node_labels)
+            self._scatter_plot_3d(g_netx=g_netx, loop_counter=loop_counter, custom_node_labels=custom_node_labels)
         else:
             logger.error("Wrong scatter plot dimensions given: %s. Falling back to 2 dimensions..")
-            self._scatter_plot_2d(g_netx=g_netx, loop_counter=loop_counter, save_as_image=save_as_image,
-                                  custom_node_labels=custom_node_labels)
+            self._scatter_plot_2d(g_netx=g_netx, loop_counter=loop_counter, custom_node_labels=custom_node_labels)
 
-    def _scatter_plot_3d(self, g_netx: nx.Graph, loop_counter: int, save_as_image: bool,
-                         custom_node_labels: Dict = None) -> None:
+    def _scatter_plot_3d(self, g_netx: nx.Graph, loop_counter: int, custom_node_labels: Dict = None) -> None:
         """Creates a 3d plotly scatter plot.
 
         Args:
             g_netx (nx.Graph):
             loop_counter (int):
-            save_as_image (bool):
             custom_node_labels (Dict):
         """
 
         logger.info("Constructing 3d Scatter plot..")
         # Initialize components and edges
+        graph_components, \
+        nodes_with_colors, \
+        node_labels, \
+        graph_edges = self._prepare_data(g_netx=g_netx, custom_node_labels=custom_node_labels)
+        # Create Scatter Plot
+        scatter_layout = nx.spring_layout(G=g_netx, dim=3)
+        Xn = [scatter_layout[k][0] for k in list(scatter_layout.keys())]  # x-coordinates of nodes
+        Yn = [scatter_layout[k][1] for k in list(scatter_layout.keys())]  # y-coordinates
+        Zn = [scatter_layout[k][2] for k in list(scatter_layout.keys())]  # z-coordinates
+        Xe = []
+        Ye = []
+        Ze = []
+        for edge in graph_edges:
+            Xe += [scatter_layout[edge[0]][0], scatter_layout[edge[1]][0], None]  # x-coordinates of edge ends
+            Ye += [scatter_layout[edge[0]][1], scatter_layout[edge[1]][1], None]  # y-coordinates of edge ends
+            Ze += [scatter_layout[edge[0]][2], scatter_layout[edge[1]][2], None]  # z-coordinates of edge ends
+
+        lines = go.Scatter3d(x=Xe, y=Ye, z=Ze,
+                             mode='lines', line=dict(color='rgb(90, 90, 90)', width=2.5), hoverinfo='none')
+        nodes = go.Scatter3d(x=Xn, y=Yn, z=Zn,
+                             mode='markers',
+                             marker=dict(symbol='circle', size=6,
+                                         color=nodes_with_colors, colorscale=self.custom_color_scale,
+                                         line=dict(color='rgb(255,255,255)', width=4)),
+                             text=node_labels, hoverinfo='text')
+
+        x_axis = dict(backgroundcolor="rgb(200, 200, 230)", gridcolor="rgb(255, 255, 255)",
+                      showbackground=True, zerolinecolor="rgb(255, 255, 255)")
+        y_axis = dict(backgroundcolor="rgb(230, 200,230)", gridcolor="rgb(255, 255, 255)",
+                      showbackground=True, zerolinecolor="rgb(255, 255, 255)")
+        z_axis = dict(
+            backgroundcolor="rgb(230, 230,200)", gridcolor="rgb(255, 255, 255)",
+            showbackground=True, zerolinecolor="rgb(255, 255, 255)")
+        camera = dict(up=dict(x=0, y=0, z=1), center=dict(x=0, y=0, z=0), eye=dict(x=0.85, y=0.85, z=0.85))
+        plot_title = self.plot_name + '_Loop-{}'.format(loop_counter) + "_NumOfCommunities-" + str(
+            len(graph_components))
+        layout = go.Layout(title=plot_title,
+                           scene=dict(xaxis=dict(x_axis), yaxis=dict(y_axis), zaxis=dict(z_axis), camera=camera),
+                           margin=dict(t=100), hovermode='closest', showlegend=False, )
+        data = [lines, nodes]
+        fig = go.Figure(data=data, layout=layout)
+
+        plot_name = os.path.join(self.plot_path, "scatter_3d_loop_{}.html".format(loop_counter))
+        logger.info("Plotting...")
+        if self.save_img:
+            plot(figure_or_data=fig, filename=plot_name, validate=False, auto_open=True,
+                 image='png', image_filename=self.plot_name, output_type='file', image_width=1700, image_height=800)
+        else:
+            plot(figure_or_data=fig, filename=plot_name)
+
+    def _scatter_plot_2d(self, g_netx: nx.Graph, loop_counter: int, custom_node_labels: Dict = None) -> None:
+        """Creates a 2d plotly scatter plot. :param g_netx: :type g_netx:
+        nx.Graph :param loop_counter: :type loop_counter: int :param
+        save_as_image: :type save_as_image: bool :param custom_node_labels:
+        :type custom_node_labels: Dict
+
+        Args:
+            g_netx (nx.Graph):
+            loop_counter (int):
+            custom_node_labels (Dict):
+        """
+
+        logger.info("Constructing 2d Scatter plot..")
+        # Initialize components and edges
+        graph_components, \
+        nodes_with_colors, \
+        node_labels, \
+        graph_edges = self._prepare_data(g_netx=g_netx, custom_node_labels=custom_node_labels)
+        # Create Scatter Plot
+        scatter_layout = nx.spring_layout(G=g_netx, dim=2)
+        Xn = [scatter_layout[k][0] for k in list(scatter_layout.keys())]  # x-coordinates of nodes
+        Yn = [scatter_layout[k][1] for k in list(scatter_layout.keys())]  # y-coordinates
+        Xe = []
+        Ye = []
+        for edge in graph_edges:
+            Xe += [scatter_layout[edge[0]][0], scatter_layout[edge[1]][0], None]  # x-coordinates of edge ends
+            Ye += [scatter_layout[edge[0]][1], scatter_layout[edge[1]][1], None]  # y-coordinates of edge ends
+
+        lines = go.Scatter(x=Xe, y=Ye,
+                           mode='lines', line=dict(color='rgb(90, 90, 90)', width=2.5), hoverinfo='none')
+        nodes = go.Scatter(x=Xn, y=Yn,
+                           mode='markers',
+                           marker=dict(symbol='circle', size=6,
+                                       color=nodes_with_colors, colorscale=self.custom_color_scale,
+                                       line=dict(color='rgb(255,255,255)', width=4)),
+                           text=node_labels, hoverinfo='text')
+
+        x_axis = dict(backgroundcolor="rgb(200, 200, 230)", gridcolor="rgb(255, 255, 255)",
+                      showbackground=True, zerolinecolor="rgb(255, 255, 255)")
+        y_axis = dict(backgroundcolor="rgb(230, 200,230)", gridcolor="rgb(255, 255, 255)",
+                      showbackground=True, zerolinecolor="rgb(255, 255, 255)")
+        plot_title = self.plot_name + '_Loop-{}'.format(loop_counter) + "_NumOfCommunities-" + str(
+            len(graph_components))
+        layout = go.Layout(title=plot_title, width=1080, height=720,
+                           scene=dict(xaxis=dict(x_axis), yaxis=dict(y_axis)),
+                           margin=dict(t=100), hovermode='closest', showlegend=False)
+        data = [lines, nodes]
+        fig = go.Figure(data=data, layout=layout)
+
+        plot_name = os.path.join(self.plot_path, "scatter_2d_loop_{}.html".format(loop_counter))
+        logger.info("Plotting...")
+        if self.save_img:
+            plot(figure_or_data=fig, filename=plot_name, validate=False, auto_open=True,
+                 image='png', image_filename=self.plot_name, output_type='file', image_width=1700, image_height=800)
+        else:
+            plot(figure_or_data=fig, filename=plot_name)
+
+    def _prepare_data(self, g_netx: nx.Graph, custom_node_labels: Dict):
+        """Create the scatter plot data from a NetworkX Graph.
+
+        Args:
+            g_netx (nx.Graph):
+            custom_node_labels (Dict):
+        """
+
         graph_components = [comp for comp in nx.connected_components(g_netx)]
         graph_edges = g_netx.edges()
-        # Create csv's with the communities data
+        # Prepare the node groups and colors
         communities_dict = {}
         for community_ind, graph_component in enumerate(graph_components):
             for node in graph_component:
@@ -127,67 +240,4 @@ class PlotlyVisualizer(AbstractVisualizer):
             except KeyError:
                 print("Node %d in small community" % node)
 
-        scatter_layout = nx.spring_layout(G=g_netx, dim=3)
-        Xn = [scatter_layout[k][0] for k in list(scatter_layout.keys())]  # x-coordinates of nodes
-        Yn = [scatter_layout[k][1] for k in list(scatter_layout.keys())]  # y-coordinates
-        Zn = [scatter_layout[k][2] for k in list(scatter_layout.keys())]  # z-coordinates
-        Xe = []
-        Ye = []
-        Ze = []
-        for edge in graph_edges:
-            Xe += [scatter_layout[edge[0]][0], scatter_layout[edge[1]][0], None]  # x-coordinates of edge ends
-            Ye += [scatter_layout[edge[0]][1], scatter_layout[edge[1]][1], None]  # y-coordinates of edge ends
-            Ze += [scatter_layout[edge[0]][2], scatter_layout[edge[1]][2], None]  # z-coordinates of edge ends
-
-        lines = go.Scatter3d(x=Xe, y=Ye, z=Ze,
-                             mode='lines', line=dict(color='rgb(90, 90, 90)', width=2.5),
-                             text="None", hoverinfo='none')
-        nodes = go.Scatter3d(x=Xn, y=Yn, z=Zn,
-                             mode='markers', name='Nodes',
-                             marker=dict(symbol='circle', size=6,
-                                         color=nodes_with_colors, colorscale=self.custom_color_scale,
-                                         line=dict(color='rgb(255,255,255)', width=4)),
-                             text=node_labels, hoverinfo='text')
-
-        x_axis = dict(backgroundcolor="rgb(200, 200, 230)", gridcolor="rgb(255, 255, 255)",
-                      showbackground=True, zerolinecolor="rgb(255, 255, 255)")
-        y_axis = dict(backgroundcolor="rgb(230, 200,230)", gridcolor="rgb(255, 255, 255)",
-                      showbackground=True, zerolinecolor="rgb(255, 255, 255)")
-        z_axis = dict(
-            backgroundcolor="rgb(230, 230,200)", gridcolor="rgb(255, 255, 255)",
-            showbackground=True, zerolinecolor="rgb(255, 255, 255)")
-        camera = dict(up=dict(x=0, y=0, z=1), center=dict(x=0, y=0, z=0), eye=dict(x=0.85, y=0.85, z=0.85))
-        plot_title = self.plot_name + '_Loop-{}'.format(loop_counter) + "_NumOfCommunities-" + str(
-            len(graph_components))
-        layout = go.Layout(title=plot_title, width=1080, height=720,
-                           scene=dict(xaxis=dict(x_axis), yaxis=dict(y_axis), zaxis=dict(z_axis), camera=camera),
-                           margin=dict(t=100), hovermode='closest', showlegend=False,
-                           annotations=[dict(
-                               text="Nodes", xref='paper', yref='paper', x=0, y=0.1, xanchor='left', yanchor='bottom',
-                               font=dict(size=14), showarrow=False)]
-                           )
-        data = [lines, nodes]
-        fig = go.Figure(data=data, layout=layout)
-
-        plot_name = os.path.join(self.plot_path, "loop_{}.html".format(loop_counter))
-        logger.info("Plotting...")
-        if save_as_image:
-            plot(figure_or_data=fig, filename=plot_name, validate=False, auto_open=True,
-                 image='png', image_filename=self.plot_name, output_type='file', image_width=1700, image_height=800)
-        else:
-            plot(figure_or_data=fig, filename=plot_name)
-
-    def _scatter_plot_2d(self, g_netx: nx.Graph, loop_counter: int, save_as_image: bool,
-                         custom_node_labels: Dict = None) -> None:
-        """Creates a 2d plotly scatter plot. :param g_netx: :type g_netx:
-        nx.Graph :param loop_counter: :type loop_counter: int :param
-        save_as_image: :type save_as_image: bool :param custom_node_labels:
-        :type custom_node_labels: Dict
-
-        Args:
-            g_netx (nx.Graph):
-            loop_counter (int):
-            save_as_image (bool):
-            custom_node_labels (Dict):
-        """
-        raise NotImplementedError()
+        return graph_components, nodes_with_colors, node_labels, graph_edges
