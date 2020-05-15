@@ -6,6 +6,6 @@
 - [X] Add ColorLogging
 - [X] Update requirements
 - [X] Check that current unit tests are working
-- [ ] Fix README
+- [X] Fix README
 - [ ] Create unit tests for the HGN code
 - [ ] Add Metadata Class that stores step times into a database

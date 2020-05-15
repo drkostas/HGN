@@ -47,7 +47,7 @@ def _argparser() -> argparse.Namespace:
     """Setup the argument parser."""
 
     parser = argparse.ArgumentParser(
-        description='A template for python projects.',
+        description='A Distributed Hybrid Community Detection Methodology for Social Networks.',
         add_help=False)
     # Required Args
     required_arguments = parser.add_argument_group('Required Arguments')
