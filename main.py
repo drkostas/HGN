@@ -221,7 +221,7 @@ def main() -> None:
     # Initializing
     spark_config, input_config, run_options_config, output_config, modified_graph_name = setup()
     plot_steps = output_config['visualizer']['steps']
-    sm = spark_manager.SparkManager(spark_conf=spark_config,graph_name=modified_graph_name,
+    sm = spark_manager.SparkManager(spark_conf=spark_config, graph_name=modified_graph_name,
                                     feature_names=input_config['nodes']['feature_names'],
                                     nodes_encoding=input_config['nodes']['encoding'],
                                     features_to_check=run_options_config['features_to_check'],

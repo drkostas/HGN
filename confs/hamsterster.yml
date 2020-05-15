@@ -9,28 +9,28 @@ datastore:
     type: mysql
 spark:
   - config:
-      dirs:
-        df_data_folder: data/dataframes
-        spark_warehouse_folder: data/spark-warehouse
-        checkpoints_folder: data/checkpoints
-        communities_csv_folder: data/csv_data
-      spark_conf:
-        spark.submit.deployMode: client
-        spark.ui.port: 4040
-        spark.driver.cores: 5
-        spark.driver.memory: 8g
-        spark.driver.memoryOverhead: 4096
-        spark.driver.maxResultSize: 0
-        spark.executor.instances: 2
-        spark.executor.cores: 3
-        spark.executor.memory: 4g
-        spark.executor.memoryOverhead: 4096
-        spark.sql.broadcastTimeout: 3600
-        spark.sql.autoBroadcastJoinThreshold: -1
-        spark.sql.shuffle.partitions: 4
-        spark.default.parallelism: 4
-        spark.network.timeout: 3600s
-        spark_warehouse_folder: data/spark-warehouse
+      spark.master: local[*]  # Required
+      spark.submit.deployMode: client  # Required
+      spark_warehouse_folder: data/spark-warehouse  # Required
+      spark.ui.port: 4040
+      spark.driver.cores: 5
+      spark.driver.memory: 8g
+      spark.driver.memoryOverhead: 4096
+      spark.driver.maxResultSize: 0
+      spark.executor.instances: 2
+      spark.executor.cores: 3
+      spark.executor.memory: 4g
+      spark.executor.memoryOverhead: 4096
+      spark.sql.broadcastTimeout: 3600
+      spark.sql.autoBroadcastJoinThreshold: -1
+      spark.sql.shuffle.partitions: 4
+      spark.default.parallelism: 4
+      spark.network.timeout: 3600s
+    dirs:
+      df_data_folder: data/dataframes
+      spark_warehouse_folder: data/spark-warehouse
+      checkpoints_folder: data/checkpoints
+      communities_csv_folder: data/csv_data
 input:
   - config:
       name: Hamsterster
@@ -81,4 +81,6 @@ output:
       save_communities_to_csvs: false
       plot_steps:
 #        - 0
+        -
+          -
         - -1  # The Last step

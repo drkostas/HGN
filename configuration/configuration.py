@@ -46,7 +46,7 @@ class Configuration:
                                                       env_pattern=self.env_variable_pattern)
         logger.debug("Loaded config: %s" % self.config)
         # Validate the config
-        # validate_json_schema(self.config, configuration_schema)
+        validate_json_schema(self.config, configuration_schema)
         # Set the config properties as instance attributes
         self.tag = self.config['tag']
         all_config_attributes = ('datastore', 'spark', 'input', 'run_options', 'output')
@@ -128,7 +128,7 @@ class Configuration:
         """Returns the input configs."""
 
         if 'spark' in self.config_attributes:
-            return [sub_config['config'] for sub_config in self.spark]
+            return [sub_config for sub_config in self.spark]
         else:
             raise ConfigurationError('Config property spark not set!')
 

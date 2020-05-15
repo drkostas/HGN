@@ -8,11 +8,17 @@
     "datastore": {
       "$ref": "#/definitions/datastore"
     },
-    "cloudstore": {
-      "$ref": "#/definitions/cloudstore"
+    "spark": {
+      "$ref": "#/definitions/spark"
     },
-    "email_app": {
-      "$ref": "#/definitions/email_app"
+    "input": {
+      "$ref": "#/definitions/input"
+    },
+    "run_options": {
+      "$ref": "#/definitions/run_options"
+    },
+    "output": {
+      "$ref": "#/definitions/output"
     }
   },
   "required": [
@@ -24,7 +30,6 @@
       "items": {
         "type": "object"
       },
-      "additionalProperties": false,
       "required": [
         "type",
         "config"
@@ -39,7 +44,6 @@
         },
         "config": {
           "type": "object",
-          "additionalProperties": false,
           "required": [
             "hostname",
             "username",
@@ -66,44 +70,65 @@
         }
       }
     },
-    "cloudstore": {
+    "spark": {
       "type": "array",
       "items": {
         "type": "object"
       },
-      "additionalProperties": false,
       "required": [
         "config",
-        "type"
+        "dirs"
       ],
       "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "dropbox",
-            "s3"
-          ]
+        "dirs": {
+          "type": "object",
+          "required": [
+            "df_data_folder",
+            "spark_warehouse_folder",
+            "checkpoints_folder",
+            "communities_csv_folder"
+          ],
+          "properties": {
+            "df_data_folder": {
+              "type": "string"
+            },
+            "spark_warehouse_folder": {
+              "type": "string"
+            },
+            "checkpoints_folder": {
+              "type": "string"
+            },
+            "communities_csv_folder": {
+              "type": "string"
+            }
+          }
         },
         "config": {
           "type": "object",
-           "required": [
-            "api_key"
+          "required": [
+            "spark.master",
+            "spark.submit.deployMode",
+            "spark_warehouse_folder"
           ],
           "properties": {
-            "api_key": {
+            "spark.master": {
+              "type": "string"
+            },
+            "spark.submit.deployMode": {
+              "type": "string"
+            },
+            "spark_warehouse_folder": {
               "type": "string"
             }
-          },
-          "additionalProperties": true
+          }
         }
       }
     },
-    "email_app": {
+    "input": {
       "type": "array",
       "items": {
         "type": "object"
       },
-      "additionalProperties": false,
       "required": [
         "config",
         "type"
@@ -112,28 +137,190 @@
         "type": {
           "type": "string",
           "enum": [
-            "gmail",
-            "hotmail"
+            "local"
           ]
         },
         "config": {
           "type": "object",
           "required": [
-            "email_address",
-            "api_key"
+            "name",
+            "nodes",
+            "edges"
           ],
           "properties": {
-            "email_address": {
+            "name": {
               "type": "string"
             },
-            "api_key": {
-              "type": "string"
+            "nodes": {
+              "type": "object",
+              "required": [
+                "path",
+                "has_header",
+                "delimiter",
+                "encoding",
+                "feature_names"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "has_header": {
+                  "type": "boolean"
+                },
+                "delimiter": {
+                  "type": "string"
+                },
+                "encoding": {
+                  "type": "string"
+                },
+                "feature_names": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "edges": {
+              "type": "object",
+              "required": [
+                "path",
+                "has_header",
+                "delimiter",
+                "has_weights"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "has_header": {
+                  "type": "boolean"
+                },
+                "delimiter": {
+                  "type": "string"
+                },
+                "has_weights": {
+                  "type": "boolean"
+                }
+              }
             }
-          },
-          "additionalProperties": true
+          }
+        }
+      }
+    },
+    "run_options": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object",
+          "required": [
+            "cached_init_step",
+            "feature_min_avg",
+            "r_lvl1_thres",
+            "r_lvl2_thres",
+            "max_edge_weight",
+            "betweenness_thres",
+            "max_sp_length",
+            "min_comp_size",
+            "max_steps",
+            "features_to_check"
+          ],
+          "properties": {
+            "cached_init_step": {
+              "type": "boolean"
+            },
+            "feature_min_avg": {
+              "type": "number"
+            },
+            "r_lvl1_thres": {
+              "type": "number"
+            },
+            "r_lvl2_thres": {
+              "type": "number"
+            },
+            "max_edge_weight": {
+              "type": "number"
+            },
+            "betweenness_thres": {
+              "type": "number"
+            },
+            "max_sp_length": {
+              "type": "integer"
+            },
+            "min_comp_size": {
+              "type": "integer"
+            },
+            "max_steps": {
+              "type": "integer"
+            },
+            "features_to_check": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object",
+          "required": [
+            "logs_folder",
+            "save_communities_to_csvs",
+            "visualizer"
+          ],
+          "properties": {
+            "logs_folder": {
+              "type": "string"
+            },
+            "save_communities_to_csvs": {
+              "type": "boolean"
+            },
+            "visualizer": {
+              "type": "object",
+              "required": [
+                "dimensions",
+                "save_img",
+                "folder",
+                "steps"
+              ],
+              "properties": {
+                "dimensions": {
+                  "type": "integer"
+                },
+                "save_img": {
+                  "type": "boolean"
+                },
+                "folder": {
+                  "type": "string"
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
-  },
-  "additionalProperties": false
+  }
 }

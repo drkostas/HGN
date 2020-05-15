@@ -77,10 +77,9 @@ class SparkManager:
         self._clean_folder(folder_path=spark_warehouse_folder)
         # Configure spark properties
         conf = pyspark.SparkConf()
-        conf.setMaster("local[*]") \
-            .setAppName(self.graph_name) \
+        conf.setAppName(self.graph_name) \
             .set("spark.sql.warehouse.dir", spark_warehouse_folder)
-        [conf.set(str(key), str(value)) for key, value in spark_conf['spark_conf'].items()]
+        [conf.set(str(key), str(value)) for key, value in spark_conf['config'].items()]
         logger.debug("Initializing Spark Session with conf:")
         logger.debug(conf.getAll())
         # Instantiate Spark
