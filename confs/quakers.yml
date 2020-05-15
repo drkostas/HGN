@@ -1,12 +1,12 @@
-tag: dev
-datastore:  # All properties required
-  - config:
-      hostname: !ENV ${MYSQL_HOST}
-      username: !ENV ${MYSQL_USERNAME}
-      password: !ENV ${MYSQL_PASSWORD}
-      db_name: !ENV ${MYSQL_DB_NAME}
-      port: 3306
-    type: mysql
+tag: dev  # Required
+#datastore:  # All properties required
+#  - config:
+#      hostname: !ENV ${MYSQL_HOST}
+#      username: !ENV ${MYSQL_USERNAME}
+#      password: !ENV ${MYSQL_PASSWORD}
+#      db_name: !ENV ${MYSQL_DB_NAME}
+#      port: 3306
+#    type: mysql
 spark:
   - config:
       spark.master: local[*]  # Required

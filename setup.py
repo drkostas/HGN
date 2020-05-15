@@ -27,7 +27,7 @@ setup(
     name='HGN',
     version='1.0',
     # package_dir={'': '.'},
-    packages=['datastore', 'cloudstore', 'configuration', 'email_app'],
+    packages=['color_log', 'configuration', 'datastore', 'graph_tools', 'spark_manager', 'visualizer'],
     py_modules=['main'],
     data_files=[('', ['configuration/yml_schema.json'])],
     entry_points={
@@ -35,7 +35,7 @@ setup(
             'hgn=main:main',
         ]
     },
-    url='https://github.com/drkostas/template_python_project',
+    url='https://github.com/drkostas/HGN',
     license='GNU General Public License v3.0',
     author='drkostas',
     author_email='georgiou.kostas94@gmail.com',

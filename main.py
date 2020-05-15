@@ -161,6 +161,7 @@ def main_loop(g: spark_manager.GraphFrame,
         edge_betweenness (spark_manager.pyspark.sql.DataFrame):
         run_options_config (Dict):
         plot_steps:
+        plot_dims (int):
     """
 
     logger.info("Starting the Main Loop..")
@@ -215,7 +216,7 @@ def main_loop(g: spark_manager.GraphFrame,
 def main() -> None:
     """Run the HGN code.
 
-    Example python main.py -c confs/template_conf.yml [--debug]
+    Example: python main.py -c confs/conf.yml [--debug]
     """
 
     # Initializing

@@ -2,14 +2,11 @@ import os
 import pathlib
 from typing import List, Dict, Tuple
 import logging
-import csv
-import pandas as pd
 import networkx as nx
 import plotly.graph_objs as go
-from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot
+from plotly.offline import plot
 
 from .visualizer import AbstractVisualizer
-from spark_manager import spark_manager as sm_lib
 from color_log.color_log import ColorLog
 
 logger = ColorLog(logging.getLogger('PlotlyVisualizer'), "yellow")
@@ -212,7 +209,7 @@ class PlotlyVisualizer(AbstractVisualizer):
         else:
             plot(figure_or_data=fig, filename=plot_name)
 
-    def _prepare_data(self, g_netx: nx.Graph, custom_node_labels: Dict):
+    def _prepare_data(self, g_netx: nx.Graph, custom_node_labels: Dict) -> Tuple[List, List, List, nx.graph.EdgeView]:
         """Create the scatter plot data from a NetworkX Graph.
 
         Args:

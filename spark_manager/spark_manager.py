@@ -2,7 +2,7 @@ import os
 import shutil
 import pathlib
 import csv
-from typing import List, Tuple, Dict
+from typing import List, Dict
 import logging
 from functools import reduce
 import networkx as nx

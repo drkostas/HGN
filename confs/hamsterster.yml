@@ -1,12 +1,12 @@
-tag: dev
-datastore:
-  - config:
-      hostname: !ENV ${MYSQL_HOST}
-      username: !ENV ${MYSQL_USERNAME}
-      password: !ENV ${MYSQL_PASSWORD}
-      db_name: !ENV ${MYSQL_DB_NAME}
-      port: 3306
-    type: mysql
+tag: dev  # Required
+#datastore:  # All properties required
+#  - config:
+#      hostname: !ENV ${MYSQL_HOST}
+#      username: !ENV ${MYSQL_USERNAME}
+#      password: !ENV ${MYSQL_PASSWORD}
+#      db_name: !ENV ${MYSQL_DB_NAME}
+#      port: 3306
+#    type: mysql
 spark:
   - config:
       spark.master: local[*]  # Required
@@ -31,7 +31,7 @@ spark:
       spark_warehouse_folder: data/spark-warehouse
       checkpoints_folder: data/checkpoints
       communities_csv_folder: data/csv_data
-input:
+input:  # All properties required
   - config:
       name: Hamsterster
       nodes:
@@ -58,7 +58,7 @@ input:
         has_weights: false
         delimiter: ' '
     type: local
-run_options:
+run_options:  # All properties required
   - config:
       feature_min_avg: 0.33
       r_lvl1_thres: 0.50
@@ -73,7 +73,7 @@ run_options:
         - species
         - coloring
         - hometown
-output:
+output:  # All properties required
   - config:
       logs_folder: data/logs
       plots_folder: data/plots
