@@ -1,7 +1,3 @@
-cloudstore:
-- config:
-    api_key: changed_api
-  type: dropbox
 datastore:
 - config:
     db_name: db3

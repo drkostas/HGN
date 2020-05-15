@@ -39,10 +39,7 @@ class TestConfiguration(unittest.TestCase):
                                              'password': 'pass2',
                                              'db_name': 'db3',
                                              'port': 3306},
-                                        'type': 'mysql'}],
-                         'cloudstore': [{'config':
-                                             {'api_key': 'apiqwerty'},
-                                         'type': 'dropbox'}]}
+                                        'type': 'mysql'}]}
         # Compare
         logger.info('Comparing the results..')
         self.assertDictEqual(self._sort_dict(expected_json), self._sort_dict(configuration.to_json()))
@@ -53,9 +50,8 @@ class TestConfiguration(unittest.TestCase):
         # Modify and export yml
         logger.info('Changed the host and the api_key..')
         configuration.datastore[0]['config']['hostname'] = 'changedhost'
-        configuration.cloudstore[0]['config']['api_key'] = 'changed_api'
         logger.info('Exporting to yaml..')
-        configuration.to_yaml('test_data/test_configuration/actual_output_to_yaml.yml', include_tag=True)
+        configuration.to_yaml('test_data/test_configuration/actual_output_to_yaml.yml')
         # Load the modified yml
         logger.info('Loading the exported yaml..')
         modified_configuration = Configuration(
@@ -69,10 +65,7 @@ class TestConfiguration(unittest.TestCase):
                                              'password': 'pass2',
                                              'db_name': 'db3',
                                              'port': 3306},
-                                        'type': 'mysql'}],
-                         'cloudstore': [{'config':
-                                             {'api_key': 'changed_api'},
-                                         'type': 'dropbox'}]}
+                                        'type': 'mysql'}]}
         self.assertDictEqual(self._sort_dict(expected_json), self._sort_dict(modified_configuration.to_json()))
 
     @classmethod

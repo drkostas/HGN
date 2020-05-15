@@ -5,7 +5,7 @@
 - [X] Integrate old config into the Configuration class
 - [X] Add ColorLogging
 - [X] Update requirements
+- [X] Check that current unit tests are working
 - [ ] Fix README
-- [ ] Check that current unit tests are working
 - [ ] Create unit tests for the HGN code
 - [ ] Add Metadata Class that stores step times into a database
