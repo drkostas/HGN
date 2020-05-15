@@ -24,21 +24,21 @@ else:
 
 # Run the Setup
 setup(
-    name='template_python_project',
-    version='0.1',
+    name='HGN',
+    version='1.0',
     # package_dir={'': '.'},
-    packages=['datastore', 'cloudstore', 'configuration', 'email_app'],
+    packages=['color_log', 'configuration', 'datastore', 'graph_tools', 'spark_manager', 'visualizer'],
     py_modules=['main'],
     data_files=[('', ['configuration/yml_schema.json'])],
     entry_points={
         'console_scripts': [
-            'template_python_project=main:main',
+            'hgn=main:main',
         ]
     },
-    url='https://github.com/drkostas/template_python_project',
+    url='https://github.com/drkostas/HGN',
     license='GNU General Public License v3.0',
     author='drkostas',
     author_email='georgiou.kostas94@gmail.com',
-    description='A template for python projects.'
+    description='A Distributed Hybrid Community Detection Methodology for Social Networks.'
 
 )

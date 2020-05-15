@@ -1,7 +1,8 @@
 import logging
 from typing import List, Tuple, Dict
 
-from mysql import connector as mysql_connector
+from mysql import connector
+import mysql.connector.connection_cext
 
 from .abstract_datastore import AbstractDatastore
 
@@ -11,8 +12,8 @@ logger = logging.getLogger('MySqlDataStore')
 class MySqlDatastore(AbstractDatastore):
     __slots__ = ('_connection', '_cursor')
 
-    _connection: mysql_connector.connection_cext.CMySQLConnection
-    _cursor: mysql_connector.connection_cext.CMySQLCursor
+    _connection: connector.connection_cext.CMySQLConnection
+    _cursor: connector.connection_cext.CMySQLCursor
 
     def __init__(self, config: Dict) -> None:
         """
@@ -25,7 +26,7 @@ class MySqlDatastore(AbstractDatastore):
 
     @staticmethod
     def get_connection(username: str, password: str, hostname: str, db_name: str, port: int = 3306) \
-            -> Tuple[mysql_connector.connection_cext.CMySQLConnection, mysql_connector.connection_cext.CMySQLCursor]:
+            -> Tuple[connector.connection_cext.CMySQLConnection, connector.connection_cext.CMySQLCursor]:
         """
         Creates and returns a connection and a cursor/session to the MySQL DB
 
@@ -37,7 +38,7 @@ class MySqlDatastore(AbstractDatastore):
         :return:
         """
 
-        connection = mysql_connector.connect(
+        connection = connector.connect(
             host=hostname,
             user=username,
             passwd=password,
