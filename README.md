@@ -1,8 +1,9 @@
-# Template Python Project
+# Hybrid Girvan Newman
 [![CircleCI](https://circleci.com/gh/drkostas/HGN/tree/master.svg?style=svg)](https://circleci.com/gh/drkostas/HGN/tree/master)
 [![GitHub license](https://img.shields.io/badge/license-GNU-blue.svg)](https://raw.githubusercontent.com/drkostas/HGN/master/LICENSE)
 
 ## Table of Contents
+
 + [About](#about)
 + [Getting Started](#getting_started)
     + [Prerequisites](#prerequisites)
@@ -24,7 +25,8 @@
 + [Acknowledgments](#acknowledgments)
 
 ## About <a name = "about"></a>
-Code for the paper "[A Distributed Hybrid Community Detection Methodology for Social Networks.](https://www.mdpi.com/1999-4893/12/8/175)"
+
+Hybrid Girvan Newman. Code for the paper "[A Distributed Hybrid Community Detection Methodology for Social Networks.](https://www.mdpi.com/1999-4893/12/8/175)"
 <br><br>
 The proposed methodology is an iterative, divisive community detection process that combines the network topology features 
 of loose similarity and local edge betweenness measure, along with the user content information in order to remove the 
@@ -39,7 +41,6 @@ and [GraphFrames 0.8.0](https://github.com/graphframes/graphframes/tree/v0.8.0)
 
 ## Getting Started <a name = "getting_started"></a>
 
-
 These instructions will get you a copy of the project up and running on your local machine for development 
 and testing purposes. See deployment for notes on how to deploy the project on a live system.
 
@@ -47,7 +48,6 @@ and testing purposes. See deployment for notes on how to deploy the project on a
 
 You need to have a machine with Python = 3.6, Apache Spark = 2.4.5, GraphFrames = 0.8.0 
 and any Bash based shell (e.g. zsh) installed. For Apache Spark = 2.4.5 you will also need Java 8.
-
 
 ```
 $ python3.6 -V
@@ -170,8 +170,6 @@ venv/bin/pip install --upgrade pip wheel setuptools
 Collecting pip
 .................
 ```
-
-
 
 ### Run the tests <a name = "tests"></a>
 
@@ -340,7 +338,6 @@ It is recommended that you deploy the application to a Spark Cluster.<br>Please 
 - [Apache Spark on Multi Node Cluster \[Medium\]](https://medium.com/ymedialabs-innovation/apache-spark-on-a-multi-node-cluster-b75967c8cb2b)
 - [Databricks Cluster](https://docs.databricks.com/clusters/index.html)
 - [Flintrock \[Cheap & Easy EC2 Cluster\]](https://github.com/nchammas/flintrock)
-
 
 ## Continuous Integration <a name = "ci"></a>
 
