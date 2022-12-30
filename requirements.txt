@@ -2,7 +2,7 @@ attrs==19.3.0
 decorator==4.4.2
 graphframes==0.6
 importlib-metadata==1.6.0
-joblib==0.15.0
+joblib==1.2.0
 jsonschema==3.2.0
 mysql-connector-python==8.0.20
 mysql-connector==2.2.9
