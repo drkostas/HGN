@@ -14,7 +14,7 @@ plotly==4.7.1
 protobuf==3.18.3
 py4j==0.10.7
 pyrsistent==0.16.0
-pyspark==2.4.5
+pyspark==3.2.2
 pyspark-stubs==2.4.0.post8
 python-dateutil==2.8.1
 pytz==2020.1
