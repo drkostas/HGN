@@ -1,0 +1,20 @@
+kind: banner
+name: HGN
+line: Finds communities in large social networks with Spark, the code of our 2019
+  paper.
+accent: teal
+diagram:
+- box:
+    text: graph
+- arrow
+- server:
+    label: spark
+- arrow
+- panes:
+    rows: 2
+    cols: 2
+    highlight:
+    - 0
+    - 0
+    label: communities
+    accent: true
