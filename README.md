@@ -1,3 +1,5 @@
+![HGN](docs/images/banner.png)
+
 # Hybrid Girvan Newman
 [![CircleCI](https://circleci.com/gh/drkostas/HGN/tree/master.svg?style=svg)](https://circleci.com/gh/drkostas/HGN/tree/master)
 [![GitHub license](https://img.shields.io/badge/license-GNU-blue.svg)](https://raw.githubusercontent.com/drkostas/HGN/master/LICENSE)
